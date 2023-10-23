@@ -1,0 +1,12 @@
+/*
+
+!external
+!include
+!src
+
+!.gitignore
+!build.sh
+!CMakeLists.txt
+!Config.cmake.in
+!license.txt
+!readme.md
