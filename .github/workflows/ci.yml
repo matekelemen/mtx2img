@@ -62,9 +62,14 @@ jobs:
           ./build.sh                                  \
             -t Release                                \
             -o "-DCMAKE_CXX_COMPILER=/usr/bin/g++-13" \
-            -i artifacts
-      - name: Upload Artifact
+            -p
+      - name: Upload binary artifact
         uses: actions/upload-artifact@v3
         with:
           name: release-ubuntu
-          path: artifacts
+          path: build/*Linux.zip
+      - name: Upload source artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: release-source
+          path: build/*Source.zip
