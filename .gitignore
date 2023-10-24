@@ -5,6 +5,7 @@
 !src
 
 !.gitignore
+!makefile
 !build.sh
 !CMakeLists.txt
 !Config.cmake.in
