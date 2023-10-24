@@ -24,6 +24,12 @@ jobs:
         sanitizer: [address, thread, undefined]
     runs-on: ubuntu-latest
     steps:
+      - name: Install toolchain
+        run: apt install gcc-13 g++-13
+      - name: Set toolchain
+        run: |
+          update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 100 --slave /usr/bin/gcov gcov /usr/bin/gcov-13
+          update-alternatives --set gcc /usr/bin/gcc-13
       - name: Clone repository
         uses: actions/checkout@v4
         with:
@@ -46,6 +52,12 @@ jobs:
       fail-fast: false
     runs-on: ubuntu-latest
     steps:
+      - name: Install toolchain
+        run: apt install gcc-13 g++-13
+      - name: Set toolchain
+        run: |
+          update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 100 --slave /usr/bin/gcov gcov /usr/bin/gcov-13
+          update-alternatives --set gcc /usr/bin/gcc-13
       - name: Clone repository
         uses: actions/checkout@v4
         with:
