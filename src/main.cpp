@@ -144,14 +144,14 @@ std::optional<Arguments> parseArguments(int argc, char const* const* argv)
     // Validate output path
     const auto outputStatus = std::filesystem::status(arguments.outputPath);
     switch (outputStatus.type()) {
-        case std::filesystem::file_type::none: break; // <== ok
+        case std::filesystem::file_type::not_found: break; // <== ok
         case std::filesystem::file_type::regular: break; // <== ok, overwrite it
         case std::filesystem::file_type::directory: throw std::invalid_argument(std::format(
             "Error: provided output path is a directory: {}\n",
             arguments.outputPath.string()
         ));
         default: throw std::invalid_argument(std::format(
-            "Error: output is not a file: {}\n",
+            "Error: output already exists but is not a file: {}\n",
             arguments.outputPath.string()
         ));
     }
