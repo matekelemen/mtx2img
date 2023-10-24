@@ -3,6 +3,7 @@
 !external
 !include
 !src
+!.github
 
 !.gitignore
 !makefile
