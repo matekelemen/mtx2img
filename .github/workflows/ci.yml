@@ -32,9 +32,10 @@ jobs:
           fetch-depth: 0
       - name: Build
         run: |
-          export CC=/usr/bin/gcc-13
-          export CXX=/usr/bin/g++-13
-          ./build.sh -t Debug -o "-DCMAKE_CXX_FLAGS=-fsanitize=${{ matrix.sanitizer }}"
+          ./build.sh                                  \
+            -t Debug                                  \
+            -o "-DCMAKE_CXX_COMPILER=/usr/bin/g++-13" \
+            -o "-DCMAKE_CXX_FLAGS=-fsanitize=${{ matrix.sanitizer }}"
       - name: Run tests
         run: |
           build/bin/mtx2img .github/assets/fidap005.mtx out.png
@@ -58,9 +59,10 @@ jobs:
           fetch-depth: 0
       - name: Build
         run: |
-          export CC=/usr/bin/gcc-13
-          export CXX=/usr/bin/g++-13
-          ./build.sh -t Release -i artifacts
+          ./build.sh                                  \
+            -t Release                                \
+            -o "-DCMAKE_CXX_COMPILER=/usr/bin/g++-13" \
+            -i artifacts
       - name: Upload Artifact
         uses: actions/upload-artifact@v3
         with:
