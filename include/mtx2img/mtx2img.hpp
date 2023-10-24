@@ -3,15 +3,16 @@
 // --- STL Includes ---
 #include <iosfwd>
 #include <filesystem>
+#include <vector>
 
 
 namespace mtx2img {
 
 
-void convert(std::istream& r_stream,
-             const std::filesystem::path& r_outputFilePath,
-             std::size_t imageWidth,
-             std::size_t imageHeight);
+std::vector<unsigned char> convert(std::istream& r_stream,
+                                   std::size_t& r_imageWidth,
+                                   std::size_t& r_imageHeight,
+                                   const std::string& r_colormapName);
 
 
 } // namespace mtx2img
