@@ -26,19 +26,14 @@ jobs:
     steps:
       - name: Install toolchain
         run: sudo apt install gcc-13 g++-13
-      - name: Set toolchain
-        run: |
-          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 100 \
-                                   --slave /usr/bin/g++ g++ /usr/bin/g++-13       \
-                                   --slave /usr/bin/gcov gcov /usr/bin/gcov-13
-          sudo update-alternatives --set gcc /usr/bin/gcc-13
-          sudo update-alternatives --set g++ /usr/bin/g++-13
       - name: Clone repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Build
         run: |
+          export CC=/usr/bin/gcc-13
+          export CXX=/usr/bin/g++-13
           ./build.sh -t Debug -o "-DCMAKE_CXX_FLAGS=-fsanitize=${{ matrix.sanitizer }}"
       - name: Run tests
         run: |
@@ -57,19 +52,15 @@ jobs:
     steps:
       - name: Install toolchain
         run: sudo apt install gcc-13 g++-13
-      - name: Set toolchain
-        run: |
-          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 100 \
-                                   --slave /usr/bin/g++ g++ /usr/bin/g++-13       \
-                                   --slave /usr/bin/gcov gcov /usr/bin/gcov-13
-          sudo update-alternatives --set gcc /usr/bin/gcc-13
-          sudo update-alternatives --set g++ /usr/bin/g++-13
       - name: Clone repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Build
-        run: ./build.sh -t Release -i artifacts
+        run: |
+          export CC=/usr/bin/gcc-13
+          export CXX=/usr/bin/g++-13
+          ./build.sh -t Release -i artifacts
       - name: Upload Artifact
         uses: actions/upload-artifact@v3
         with:
