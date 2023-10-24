@@ -9,7 +9,7 @@ Convert [sparse matrix market](https://math.nist.gov/MatrixMarket/formats.html#M
 `mtx2img <input-path> <output-path> [-w <output-image-width>] [-h <output-image-height>] [-c <colormap-name>]`
 
 Required arguments:
-- `<input-path>`: path pointing to an existing MatrixMarket file (*.mtx* or *.mm*). It must use to *coordinate* format (i.e.: represent a sparse matrix).
+- `<input-path>`: path pointing to an existing MatrixMarket file (*.mtx* or *.mm*). It must use the *coordinate* format (i.e.: represent a sparse matrix).
 - `<output-path>`: the output image will be written here. If a file already exists, it will be overwritten. If the path exists but is not a file, the program will without touching the output path.
 
 Optional arguments:
