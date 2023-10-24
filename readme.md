@@ -2,9 +2,8 @@
 
 Convert [sparse matrix market](https://math.nist.gov/MatrixMarket/formats.html#MMformat) files to images.
 
-<p style="display: flex; flex-direction: row;">
-        <img src=".github/assets/cube_isoparametric_quadratic_tets.png" style="max-width: 40%; margin: 5%;"/>
-        <img src=".github/assets/rbs480a.png" style="max-width: 40%; margin: 5%;"/>
+<p align="center">
+<img src=".github/assets/cube_isoparametric_quadratic_tets.png" width=300/> <img src=".github/assets/rbs480a.png" width=300/>
 </p>
 
 `mtx2img <input-path> <output-path> [-w <output-image-width>] [-h <output-image-height>] [-c <colormap-name>]`
