@@ -107,14 +107,20 @@ std::optional<Arguments> parseArguments(int argc, char const* const* argv)
     }
 
     // Parse required arguments
+    // Note: valid special case is when either of the first two args is --help
     if (argc < 2) {
         throw std::invalid_argument("Error: missing argument for input file.\n");
     } else if (argc < 3) {
+        if (std::string(argv[1]) == "--help") return {};
         throw std::invalid_argument("Error: missing argument for output file.\n");
     }
     using PathString = std::filesystem::path::string_type;
     arguments.inputPath = PathString(argv[1]);
     arguments.outputPath = PathString(argv[2]);
+
+    if (arguments.inputPath == "--help" || arguments.outputPath == "--help") {
+        return {};
+    }
 
     // Validate input path
     const auto inputStatus = std::filesystem::status(arguments.inputPath);
