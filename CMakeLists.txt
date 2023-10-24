@@ -4,6 +4,7 @@ project(mtx2img LANGUAGES CXX VERSION 0.0.0)
 # Language requirements
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Target definition
 add_executable(${PROJECT_NAME})
@@ -34,8 +35,6 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
                            PRIVATE
                            -Wall -Wpedantic -Wextra -Werror)
 endif()
-
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Package
 include(InstallRequiredSystemLibraries)
