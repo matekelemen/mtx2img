@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+    paths-ignore:
+      - "*.md"
+      - "*.gitignore"
+      - "*.txt"
+      - "*.png"
+      - "*.mtx"
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  testrunner:
+    strategy:
+      fail-fast: false
+      matrix:
+        sanitizer: [address, thread, undefined]
+    runs-on: ubuntu-latest
+    steps:
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+      - name: Build
+        run: |
+          ./build.sh -t Debug -o "-DCMAKE_CXX_FLAGS=-fsanitize=${{ matrix.sanitizer }}"
+      - name: Run tests
+        run: build/bin/mtx2img .github/assets/fidap005.mtx out.png
+        run: build/bin/mtx2img .github/assets/fidap005.mtx out.png -w 10
+        run: build/bin/mtx2img .github/assets/fidap005.mtx out.png -h 20
+        run: build/bin/mtx2img .github/assets/fidap005.mtx out.png -w 10 -h 20
+        run: build/bin/mtx2img .github/assets/fidap005.mtx out.png -w 10 -h 20 -c kindlmann
+        run: build/bin/mtx2img --help
+
+  package:
+    needs: testrunner
+    strategy:
+      fail-fast: false
+    runs-on: ubuntu-latest
+    steps:
+      uses: actions/checkout@v4
+      - name: Build
+        run: ./build.sh -t Release -i artifacts
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: release-ubuntu
+          path: artifacts
