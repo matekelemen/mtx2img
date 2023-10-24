@@ -6,19 +6,14 @@
 #include "mtx2img/mtx2img.hpp"
 
 // --- STL Includes ---
-#include <limits>
-#include <fstream>
+#include <limits> // numeric_limits
+#include <fstream> // ifstream
 #include <utility> // pair
-#include <optional>
-#include <span>
-#include <ranges>
-#include <iostream>
-#include <vector>
-#include <mutex>
-#include <thread>
-#include <cstdlib>
-#include <atomic>
-#include <numeric>
+#include <optional> // optional
+#include <span> // span
+#include <ranges> // ranges::views::iota
+#include <vector> // vector
+#include <sstream> // stringstream
 
 
 namespace mtx2img {
@@ -50,23 +45,9 @@ std::optional<std::pair<std::size_t,std::size_t>> readLine(std::istream& r_strea
 }
 
 
-std::size_t getThreadCount()
-{
-    std::size_t threadCount = std::thread::hardware_concurrency();
-    const auto p_ompNumThreads = std::getenv("OMP_NUM_THREADS");
-    if (p_ompNumThreads) {
-        const std::size_t ompThreadCount = std::strtoul(p_ompNumThreads, NULL, 10);
-        if (ompThreadCount < threadCount) {
-            threadCount = ompThreadCount;
-        }
-    }
-    return std::max(1ul, threadCount);
-}
-
-
 void fill(std::istream& r_stream,
           std::pair<std::size_t,std::size_t> matrixSize,
-          [[maybe_unused]] std::size_t nonzeros,
+          std::size_t nonzeros,
           std::span<unsigned char> image,
           std::pair<std::size_t,std::size_t> imageSize,
           std::size_t channels)
@@ -81,45 +62,25 @@ void fill(std::istream& r_stream,
     const std::size_t pixelCount = imageSize.first * imageSize.second;
     assert(image.size() == pixelCount * channels);
 
-    const std::size_t threadCount = getThreadCount();
-    std::atomic<std::size_t> entryCount = 0;
-    std::vector<std::vector<unsigned>> images(threadCount,
-                                              std::vector<unsigned>(pixelCount, 0u));
-    std::vector<std::thread> threads;
-    threads.reserve(threadCount);
-    std::mutex mutex;
+    const std::size_t threadCount = 1ul;//getThreadCount();
+    std::vector<unsigned> nnzMap(pixelCount, 0u);
 
-    for (std::size_t i_thread=0ul; i_thread<threadCount; ++i_thread) {
-        threads.push_back(std::thread(
-            [&entryCount, &r_stream, &images, &mutex, imageSize, matrixSize, i_thread]() -> void {
-                auto& r_image = images[i_thread];
-                while (true) {
-                    std::optional<std::pair<std::size_t,std::size_t>> maybePosition;
-                    {
-                        std::scoped_lock<std::mutex> lock(mutex);
-                        maybePosition = readLine(r_stream);
-                    }
-                    if (maybePosition.has_value()) {
-                        ++entryCount;
-                        const std::size_t row = maybePosition->first;
-                        const std::size_t column = maybePosition->second;
-                        const std::size_t imageRow = row * imageSize.first / matrixSize.second;
-                        const std::size_t imageColumn = column * imageSize.second / matrixSize.first;
-                        const std::size_t i_flat = std::min(imageRow * imageSize.first + imageColumn,
-                                                            r_image.size() - 1);
-                        ++r_image[i_flat];
-                    } else {
-                        break;
-                    }
-                } // while (true)
-            } // [](){}
-        )); // threads.push_back
-    } // for i_thread in range(threadCount)
-
-    for (std::thread& r_thread : threads) {
-        r_thread.join();
-    }
-    threads.clear();
+    std::size_t entryCount = 0ul;
+    while (true) {
+        const auto maybePosition = readLine(r_stream);
+        if (maybePosition.has_value()) [[likely]] {
+            ++entryCount;
+            const std::size_t row = maybePosition->first;
+            const std::size_t column = maybePosition->second;
+            const std::size_t imageRow = row * imageSize.first / matrixSize.second;
+            const std::size_t imageColumn = column * imageSize.second / matrixSize.first;
+            const std::size_t i_flat = std::min(imageRow * imageSize.first + imageColumn,
+                                                nnzMap.size() - 1);
+            ++nnzMap[i_flat];
+        } else {
+            break;
+        }
+    } // while (true)
 
     // Check the read number of entries
     if (entryCount != nonzeros) {
@@ -133,20 +94,15 @@ void fill(std::istream& r_stream,
         imageSize.first * imageSize.second / matrixSize.second / matrixSize.first
     );
 
-    for (std::size_t i_pixel=0; i_pixel<pixelCount; ++i_pixel) {
-        const unsigned nnzs = std::accumulate(images.begin(),
-                                              images.end(),
-                                              0u,
-                                              [i_pixel](unsigned lhs, const auto& r_image){
-                                                  return lhs + r_image[i_pixel];
-                                              });
+    std::size_t i_value = 0;
+    for (auto nnzsInPixel : nnzMap) {
         const unsigned char intensity = 255 - std::min(
-            nnzs ? std::max(int(nnzs / maxEntriesPerPixel * 0xff), 0x80) : 0,
-            0xff);
-        std::size_t i_value = channels * i_pixel;
-        image[i_value++] = intensity ? 255 : 0;
-        image[i_value++] = intensity ? 255 : 0;
-        image[i_value]   = intensity ? 255 : 0;
+            nnzsInPixel ? std::max(int(nnzsInPixel * 0xff / maxEntriesPerPixel), 0x80) : 0,
+            0xff
+        );
+        image[i_value]   = intensity;
+        image[i_value++] = intensity;
+        image[i_value++] = intensity;
     }
 }
 
