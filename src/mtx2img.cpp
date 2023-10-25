@@ -3,6 +3,7 @@
 
 // --- STL Includes ---
 #include <array> // array
+#include <stdexcept>
 #include <vector> // vector
 #include <limits> // numeric_limits
 #include <fstream> // ifstream
@@ -12,13 +13,32 @@
 #include <ranges> // ranges::views::iota
 #include <format> // format
 #include <cassert> // assert
+#include <regex> // regex, regex_match
 
 #ifndef NDEBUG
-    #include <iostream>
+    #include <iostream> // cout, cerr
 #endif
 
 
 namespace mtx2img {
+
+
+namespace format {
+
+
+struct Properties
+{
+    std::optional<Object> object;
+    std::optional<Format> format;
+    std::optional<Data> data;
+    std::optional<Structure> structure;
+    std::optional<std::size_t> rows;
+    std::optional<std::size_t> columns;
+    std::optional<std::size_t> nonzeros;
+}; // struct Properties
+
+
+} // namespace format
 
 
 constexpr std::size_t CHANNELS = 3ul;
@@ -135,7 +155,7 @@ std::vector<std::array<unsigned char, CHANNELS>> makeColormap(const std::string&
             {236,229, 27},{239,229, 28},{241,229, 29},{244,230, 30},{246,230, 32},{248,230, 33},{251,231, 35},{253,231, 37}
         };
     } else {
-        throw std::runtime_error(std::format(
+        throw std::invalid_argument(std::format(
             "Error: invalid colormap: {}\n",
             r_colormapName
         ));
@@ -143,21 +163,19 @@ std::vector<std::array<unsigned char, CHANNELS>> makeColormap(const std::string&
 }
 
 
-std::optional<std::pair<std::size_t,std::size_t>> readLine(std::istream& r_stream)
+std::optional<std::pair<std::size_t,std::size_t>> readDataLine(std::istream& r_stream)
 {
     constexpr std::streamsize ignoreSize = std::numeric_limits<std::streamsize>::max();
-    std::pair<std::size_t,std::size_t> position;
+    std::size_t row, column;
 
-    r_stream >> position.first;
+    r_stream >> row;
     if (r_stream.eof() || r_stream.bad()) {
         r_stream.clear();
         r_stream.ignore(ignoreSize, '\n');
         return {};
     }
 
-    r_stream.get();
-
-    r_stream >> position.second;
+    r_stream >> column;
     if (r_stream.eof() || r_stream.bad()) {
         r_stream.clear();
         r_stream.ignore(ignoreSize, '\n');
@@ -170,19 +188,198 @@ std::optional<std::pair<std::size_t,std::size_t>> readLine(std::istream& r_strea
         // Check indices in debug mode
         // => matrix market indices begin with 1,
         //    so it's usually safe to subtract 1 from them.
-        if (position.first == 0ul) {
+        if (row == 0ul) {
             std::cerr << "mtx2img: WARNING: unexpected 0-based row index!\n";
         }
-        if (position.first == 0ul) {
+        if (column == 0ul) {
             std::cerr << "mtx2img: WARNING: unexpected 0-based column index!\n";
         }
     #endif
 
     // Convert (row,column) indices to 0-based indices
     return std::make_pair(
-        std::max(position.first, 1ul) - 1ul,
-        std::max(position.second, 1ul) - 1ul
+        std::max(row, 1ul) - 1ul,
+        std::max(column, 1ul) - 1ul
     );
+}
+
+
+format::Properties parseHeader(std::istream& r_stream,
+                               std::span<std::string::value_type> inputBuffer)
+{
+    format::Properties inputProperties;
+    std::regex formatPattern(R"(^%%MatrixMarket (\w+) (\w+) (.*)?)");
+    std::regex qualifierPattern(R"(\w+)");
+    std::size_t i_line = 0ul;
+
+    #ifndef NDEBUG
+        std::cout << "mtx2img: --- HEADER BEGIN ---\n";
+    #endif
+
+    while (r_stream.peek() == '%' && !r_stream.bad() && !r_stream.fail()) /*comment line begins with a '%'*/ {
+        // Read the input stream until the buffer is filled
+        // or a newline character is encountered.
+        r_stream.getline(inputBuffer.data(), inputBuffer.size());
+
+        // If the fail bit is set, the buffer got filled before
+        // a newline character was found in the stream. This means
+        // that the input file is invalid.
+        if (r_stream.fail()) {
+            throw ParsingException(std::format(
+                "Error: header line exceeds the maximum length allowed by the specification ({})\n{}...\n",
+                inputBuffer.size(),
+                inputBuffer.data()
+            ));
+        }
+
+        // The first line must contain format properties.
+        std::match_results<const std::string::value_type*> match;
+        if (std::regex_match(inputBuffer.data(), match, formatPattern)) {
+            assert(2 <= match.size());
+
+            // Parse object type (matrix, vector, etc.)
+            const std::string objectName = match.str(1);
+            if (objectName == "matrix") {
+                inputProperties.object = format::Object::Matrix;
+            } else if (objectName == "vector") {
+                inputProperties.object = format::Object::Vector;
+            } else {
+                throw InvalidFormat(std::format(
+                    "Error: invalid input object type: {}\n",
+                    objectName
+                ));
+            }
+
+            // Parse format type (coordinate or array)
+            const std::string formatName = match.str(2);
+            if (formatName == "coordinate") {
+                inputProperties.format = format::Format::Coordinate;
+            } else if (formatName == "array") {
+                inputProperties.format = format::Format::Array;
+            } else {
+                throw InvalidFormat(std::format(
+                    "Error: invalid matrix format: {}\n",
+                    formatName
+                ));
+            }
+
+            // Loop over optional qualifiers (value type, symmetry)
+            if (3 < match.size()) {
+                const std::string qualifiers = match.str(3);
+                for (auto it_qualifier = std::sregex_iterator(qualifiers.begin(),
+                                                              qualifiers.end(),
+                                                              qualifierPattern);
+                          it_qualifier != std::sregex_iterator();
+                          ++it_qualifier) {
+                    const std::string qualifier = it_qualifier->str();
+                    if (qualifier == "real") {
+                        inputProperties.data = format::Data::Real;
+                    } else if (qualifier == "integer") {
+                        inputProperties.data = format::Data::Integer;
+                    } else if (qualifier == "complex") {
+                        inputProperties.data = format::Data::Complex;
+                    } else if (qualifier == "pattern") {
+                        inputProperties.data = format::Data::Pattern;
+                    } else if (qualifier == "general") {
+                        inputProperties.structure = format::Structure::General;
+                    } else if (qualifier == "symmetric") {
+                        inputProperties.structure = format::Structure::Symmetric;
+                    } else if (qualifier == "skew-symmetric") {
+                        inputProperties.structure = format::Structure::SkewSymmetric;
+                    } else if (qualifier == "hermitian") {
+                        inputProperties.structure = format::Structure::Hermitian;
+                    } else {
+                        throw InvalidFormat(std::format(
+                            "Error: invalid qualifier in input header: {}",
+                            qualifier
+                        ));
+                    }
+                }
+            }
+        } else if (i_line == 0ul) {
+            throw ParsingException(std::format(
+                "Error: the first line of the input must begin with '%%MatrixMarket' and define the matrix format, but it is\n{}\n",
+                inputBuffer.data()
+            ));
+        }
+
+        #ifndef NDEBUG
+            else {
+                // Warn if this is not the first line but the comment
+                // line matches a property definition line
+                std::cerr << "mtx2img: WARNING: input redefines matrix properties (redefined properties are ignored):\n";
+            }
+            // Print the header in debug mode.
+            std::cout << "mtx2img: " << inputBuffer.data() << "\n";
+        #endif
+
+        ++i_line;
+    }
+
+    long long rows = 0ul, columns = 0ul, nonzeros = 0ul;
+
+    // Parse number of rows
+    r_stream >> rows;
+    if (r_stream.fail()) {
+        throw ParsingException("Error: failed to parse the number of rows in the input matrix\n");
+    } else if (rows < 0ll) {
+        throw ParsingException(std::format(
+            "Error: negative number of rows in input: {}\n",
+            rows
+        ));
+    } else {
+        inputProperties.rows = static_cast<std::size_t>(rows);
+    }
+
+    // Parse number of columns
+    r_stream >> columns;
+    if (r_stream.fail()) {
+        throw ParsingException("Error: failed to parse the number of columns in the input matrix\n");
+    } else if (columns < 0ll) {
+        throw ParsingException(std::format(
+            "Error: negative number of columns in input: {}\n",
+            columns
+        ));
+    } else {
+        inputProperties.columns = static_cast<std::size_t>(columns);
+    }
+
+    // Parse number of nonzeros
+    r_stream >> nonzeros;
+    if (r_stream.fail()) {
+        throw ParsingException("Error: failed to parse the number of nonzeros in the input matrix\n");
+    } else if (nonzeros < 0ll) {
+        throw ParsingException(std::format(
+            "Error: negative number of nonzeros in input: {}\n",
+            nonzeros
+        ));
+    } else {
+        inputProperties.nonzeros = static_cast<std::size_t>(nonzeros);
+    }
+
+    // Assign default qualifiers if necessary
+    if (!inputProperties.data.has_value()) {
+        inputProperties.data = format::Data::Real;
+    }
+
+    if (!inputProperties.structure.has_value()) {
+        inputProperties.structure = format::Structure::General;
+    }
+
+    // Ignore the rest of the line
+    r_stream.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+
+    #ifndef NDEBUG
+        std::cout << "mtx2img: --- END HEADER ---\n";
+
+        // Print matrix properties in debug mode
+        std::cout << "mtx2img: input matrix properties:\n"
+                  << "mtx2img:     " << rows << " rows\n"
+                  << "mtx2img:     " << columns << " columns\n"
+                  << "mtx2img:     " << nonzeros << " entries\n";
+    #endif
+
+    return inputProperties;
 }
 
 
@@ -193,24 +390,46 @@ void fill(std::istream& r_stream,
           std::pair<std::size_t,std::size_t> imageSize,
           const std::string& r_colormapName)
 {
-    if (matrixSize.first == 0
-        || matrixSize.second == 0
-        || imageSize.first == 0
-        || imageSize.second == 0) {
+    // Nothing to do if the input size is null.
+    if (matrixSize.first == 0ul || matrixSize.second == 0ul) {
+        if (nonzeros == 0ul) {
+            return;
+        } else {
+            throw ParsingException(std::format(
+                "Error: degenerate input matrix ({}x{}) claims to have {} nonzeros",
+                matrixSize.first,
+                matrixSize.second,
+                nonzeros
+            ));
+        }
+    }
+
+    // Nothing to do if the output size is null
+    if (imageSize.first == 0ul || imageSize.second == 0ul) {
         return;
     }
 
     // Choose colormap
     const auto colormap = makeColormap(r_colormapName);
 
+    // Check image buffer size
     const std::size_t pixelCount = imageSize.first * imageSize.second;
     assert(image.size() == pixelCount * CHANNELS);
 
+    // A buffer for keeping track of how many entries in the matrix
+    // map to a given pixel.
     std::vector<unsigned> nnzMap(pixelCount, 0u);
+
+    // Track how many entries were read from the input stream.
+    // This will be compared against the expected number of nonzeros.
     std::size_t entryCount = 0ul;
+
+    // Most number of matrix entries mapping to a single pixel.
     decltype(nnzMap)::value_type maxNnzCount = 0u;
+
+    // Parse the input file and map entries to pixels in the image.
     while (true) {
-        const auto maybePosition = readLine(r_stream);
+        const auto maybePosition = readDataLine(r_stream);
         if (maybePosition.has_value()) [[likely]] {
             ++entryCount;
             const std::size_t row = maybePosition->first;
@@ -238,13 +457,15 @@ void fill(std::istream& r_stream,
 
     // Check the read number of entries
     if (entryCount != nonzeros) {
-        throw std::runtime_error(std::format(
+        throw ParsingException(std::format(
             "Expecting {} entries, but read {}\n",
             nonzeros,
             entryCount
         ));
     }
 
+    // No need to pass through the image again if no
+    // entries were read.
     if (maxNnzCount == 0) {
         return;
     }
@@ -263,69 +484,115 @@ void fill(std::istream& r_stream,
 std::vector<unsigned char> convert(std::istream& r_stream,
                                    std::size_t& r_imageWidth,
                                    std::size_t& r_imageHeight,
-                                   const std::string& r_colormapName)
+                                   const std::string& r_colormapName,
+                                   std::span<std::string::value_type> inputBuffer)
 {
     std::vector<unsigned char> image;
+    const format::Properties inputProperties = parseHeader(r_stream, inputBuffer);
 
-    // Ignore comment lines
-    while (r_stream.peek() == '%' && !r_stream.bad() && !r_stream.fail()) {
-        #ifdef NDEBUG
-            r_stream.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-        #else
-            // Print the header in debug mode.
-            std::cout << "mtx2img: ";
-            std::string buffer(512, '\0');
-            do {
-                r_stream.clear();
-                r_stream.getline(buffer.data(), buffer.size());
-                std::cout << buffer.substr(0, buffer.find('\0'));
-            } while (r_stream.fail());
-            std::cout << '\n';
-        #endif
+    // Validate object type
+    if (inputProperties.object.has_value()) {
+        switch (inputProperties.object.value()) {
+            case format::Object::Matrix: break; // <== ok
+            case format::Object::Vector: throw UnsupportedFormat("Error: vector input is not supported yet\n"); // <== @todo
+            default: throw UnsupportedFormat("Error: unsupported input object type\n");
+        }
+    } else {
+        throw ParsingException("Error: missing input object type specifier\n");
     }
 
-    std::size_t rows, columns, nonzeros;
-    r_stream >> rows;
-    r_stream.get();
-    r_stream >> columns;
-    r_stream.get();
-    r_stream >> nonzeros;
-    r_stream.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    // Validate format type
+    if (inputProperties.format.has_value()) {
+        switch (inputProperties.format.value()) {
+            case format::Format::Coordinate: break; // <== ok
+            case format::Format::Array: throw UnsupportedFormat("Error: dense input format is not supported yet\n"); // <== @todo
+            default: throw UnsupportedFormat("Error: unsupported input format type\n");
+        }
+    } else {
+        throw ParsingException("Error: missing input format type specifier\n");
+    }
+
+    // Validate data type (optional qualifier - no error if missing)
+    if (inputProperties.data.has_value()) {
+        switch (inputProperties.data.value()) {
+            case format::Data::Real: break;     // <== ok
+            case format::Data::Integer: break;  // <== ok
+            case format::Data::Complex: throw UnsupportedFormat("Error: complex value types are not supported yet.\n");
+            case format::Data::Pattern: break;  // <== ok
+            default: throw UnsupportedFormat("Error: unsupported input value type.\n");
+        }
+    }
+
+    // Validate object structure (optional qualifier - no error if missing)
+    if (inputProperties.structure.has_value()) {
+        switch (inputProperties.structure.value()) {
+            case format::Structure::General: break; // <== ok
+            case format::Structure::Symmetric: throw UnsupportedFormat("Error: symmetric input objects are not supported yet.\n");
+            case format::Structure::SkewSymmetric: throw UnsupportedFormat("Error: skew-symmetric input objects are not supported yet.\n");
+            case format::Structure::Hermitian: throw UnsupportedFormat("Error: hermitian input objects are not supported yet.\n");
+            default: throw UnsupportedFormat("Error: unsupported input object format.\n");
+        }
+    }
 
     #ifndef NDEBUG
-        // Print matrix properties in debug mode
-        std::cout << "mtx2img: input matrix properties:\n"
-                  << "mtx2img:     " << rows << " rows\n"
-                  << "mtx2img:     " << columns << " columns\n"
-                  << "mtx2img:     " << nonzeros << " entries\n";
-
         // Print changes to the output dimension in debug mode
-        if (columns < r_imageWidth) {
-            std::cout << "mtx2img: restricting image width from " << r_imageWidth << " to " << columns << '\n';
+        if (static_cast<std::size_t>(inputProperties.columns.value()) < r_imageWidth) {
+            std::cout << "mtx2img: restricting image width from "
+                      << r_imageWidth << " to "
+                      << inputProperties.columns.value()
+                      << '\n';
         }
-        if (rows < r_imageHeight) {
-            std::cout << "mtx2img: restricting image height from " << r_imageHeight << " to " << rows << '\n';
+        if (inputProperties.rows.value() < r_imageHeight) {
+            std::cout << "mtx2img: restricting image height from "
+                      << r_imageHeight << " to "
+                      << inputProperties.rows.value()
+                      << '\n';
         }
     #endif
 
     // Restrict output image size
-    r_imageWidth = std::min(r_imageWidth, columns);
-    r_imageHeight = std::min(r_imageHeight, rows);
+    r_imageWidth = std::min(r_imageWidth, inputProperties.columns.value());
+    r_imageHeight = std::min(r_imageHeight, inputProperties.rows.value());
 
     // Resize image to final size and initialize it to full white
     image.resize(r_imageWidth * r_imageHeight * CHANNELS, 0xff);
 
     // Parse input stream and fill output image buffer
     fill(
-        r_stream,                       // <== input stream
-        {rows, columns},                // <== matrix dimensions
-        nonzeros,                       // <== number of nonzero entries in matrix
-        image,                          // <== buffer
-        {r_imageWidth, r_imageHeight},  // <== buffer dimensions
-        r_colormapName                  // <== name of the colormap to use
+        r_stream,                           // <== input stream
+        {
+            inputProperties.rows.value(),   // <== number of rows in input matrix
+            inputProperties.columns.value() // <== number of columns in input matrix
+        },
+        inputProperties.nonzeros.value(),   // <== number of nonzero entries in matrix
+        image,                              // <== buffer
+        {r_imageWidth, r_imageHeight},      // <== buffer dimensions
+        r_colormapName                      // <== name of the colormap to use
     );
 
     return image;
+}
+
+
+std::vector<unsigned char> convert(std::istream& r_stream,
+                                   std::size_t& r_imageWidth,
+                                   std::size_t& r_imageHeight,
+                                   const std::string& r_colormapName)
+{
+    // The matrix market format is limited to 1024 characters per line
+    std::string inputBuffer(0x400, '\0');
+
+    // Make sure that the input buffer ends with a \0 that doesn't show in its size.
+    [[maybe_unused]] const char* dummy = inputBuffer.c_str();
+
+    // Perform the conversion using the provided input buffer
+    return convert(
+        r_stream,
+        r_imageWidth,
+        r_imageHeight,
+        r_colormapName,
+        inputBuffer
+    );
 }
 
 

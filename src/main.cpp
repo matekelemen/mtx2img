@@ -17,6 +17,10 @@
 #include <set> // set
 
 
+/** Default arguments:
+ *  - 1080x1080 pixel output image
+ *  - binary colormap (any pixel with a nonzero is black, rest are white)
+ */
 const std::map<std::string,std::string> defaultArguments {
     {"-w", "1080"},
     {"-h", "1080"},
@@ -243,16 +247,37 @@ int main(int argc, char const* const* argv)
     std::ifstream inputFile(arguments.inputPath);
     if (!inputFile.good()) {
         std::cerr << "Error: failed to open input file: " << arguments.inputPath << '\n';
-        return 1;
+        return 2;
     }
+
+    std::vector<unsigned char> image;
+    #ifdef NDEBUG
+    try {
+    #endif
 
     // Parse the input file and fill an output image buffer
     // Note: the image gets resized if the matrix dimensions
     //       are smaller than the requested image dimensions.
-    const auto image = mtx2img::convert(inputFile,
-                                        arguments.width,
-                                        arguments.height,
-                                        arguments.colormap);
+    image = mtx2img::convert(inputFile,
+                             arguments.width,
+                             arguments.height,
+                             arguments.colormap);
+
+    #ifdef NDEBUG
+    } catch (mtx2img::ParsingException& r_exception) {
+        std::cerr << r_exception.what();
+        return 3;
+    } catch (mtx2img::InvalidFormat& r_exception) {
+        std::cerr << r_exception.what();
+        return 4;
+    } catch (mtx2img::UnsupportedFormat& r_exception) {
+        std::cerr << r_exception.what();
+        return 5;
+    } catch (std::invalid_argument& r_exception) {
+        std::cerr << r_exception.what();
+        return 6;
+    }
+    #endif
 
     std::string outputPath = arguments.outputPath.string();
     if (stbi_write_png(
@@ -263,8 +288,8 @@ int main(int argc, char const* const* argv)
         static_cast<const void*>(image.data()),                                 // <== pointer to image data
         image.size() / arguments.height * sizeof(decltype(image)::value_type)   // <== bytes per row
         ) == 0) {
-        std::cerr << "Error: failed to write output image.\n";
-        return 1;
+            std::cerr << "Error: failed to write output image.\n";
+            return 1;
     }
 
     return 0;
