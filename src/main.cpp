@@ -41,12 +41,16 @@ struct Arguments
 void printHelp()
 {
     std::cout
-        << "Help: convert large sparse matrices from matrix market format to images.\n"
+        << "Help: convert large sparse matrices from MatrixMarket format to images.\n"
         << "Usage: mtx2img <path-to-source> <path-to-output> [OPTION ARGUMENT] ...\n"
         << "Options:\n"
         << "    -w <width>     : width of the output image in pixels (default: " << defaultArguments.at("-w") << ").\n"
         << "    -h <height>    : height of the output image in pixels (default: " << defaultArguments.at("-h") << ").\n"
         << "    -c <colormap>  : colormap to use for per pixel nonzero density. Options: [binary, kindlmann, viridis] (default: "  << defaultArguments.at("-c") << ").\n"
+        << "\n"
+        << "The input path must point to an existing MatrixMarket file (or pass '-' to read the same format from stdin).\n"
+        << "The parent directory of the output path must exist, and the output path is assumed to either not exist, or\n"
+        << "point to an existing file (in which case it will be overwritten)."
         ;
 }
 
@@ -154,26 +158,28 @@ std::optional<Arguments> parseArguments(int argc, char const* const* argv)
     } // if arguments.inputPath != "-"
 
     // Validate output path
-    const auto outputStatus = std::filesystem::status(arguments.outputPath);
-    switch (outputStatus.type()) {
-        case std::filesystem::file_type::not_found: break; // <== ok
-        case std::filesystem::file_type::regular: break; // <== ok, overwrite it
-        case std::filesystem::file_type::directory: throw std::invalid_argument(std::format(
-            "Error: provided output path is a directory: {}\n",
-            arguments.outputPath.string()
-        ));
-        default: throw std::invalid_argument(std::format(
-            "Error: output already exists but is not a file: {}\n",
-            arguments.outputPath.string()
-        ));
-    } // switch outputStatus
+    if (arguments.outputPath != "-") {
+        const auto outputStatus = std::filesystem::status(arguments.outputPath);
+        switch (outputStatus.type()) {
+            case std::filesystem::file_type::not_found: break; // <== ok
+            case std::filesystem::file_type::regular: break; // <== ok, overwrite it
+            case std::filesystem::file_type::directory: throw std::invalid_argument(std::format(
+                "Error: provided output path is a directory: {}\n",
+                arguments.outputPath.string()
+            ));
+            default: throw std::invalid_argument(std::format(
+                "Error: output already exists but is not a file: {}\n",
+                arguments.outputPath.string()
+            ));
+        } // switch outputStatus
 
-    if ((outputStatus.permissions() & std::filesystem::perms::owner_write) == std::filesystem::perms::none) {
-        throw std::invalid_argument(std::format(
-            "Error: missing write access to output file {}\n",
-            arguments.outputPath.string()
-        ));
-    } // if !writePermission
+        if ((outputStatus.permissions() & std::filesystem::perms::owner_write) == std::filesystem::perms::none) {
+            throw std::invalid_argument(std::format(
+                "Error: missing write access to output file {}\n",
+                arguments.outputPath.string()
+            ));
+        } // if !writePermission
+    } // if arguments.outputPath != "-"
 
     // Validate colormap
     arguments.colormap = argMap["-c"];
@@ -228,6 +234,19 @@ std::optional<Arguments> parseArguments(int argc, char const* const* argv)
 }
 
 
+// Write function to pass to stbi_write_png_to_func
+void writeImageData(void* p_context,    // <== pointer to an std::ostream
+                    void* p_data,       // <== pointer to the beginning of an unsigned char array
+                    int extent)         // <== number of bytes to write
+{
+    std::ostream& r_stream = *reinterpret_cast<std::ostream*>(p_context);
+    r_stream.write(
+        reinterpret_cast<const char*>(p_data),
+        static_cast<std::streamsize>(extent)
+    );
+}
+
+
 int main(int argc, char const* const* argv)
 {
     // Parse arguments
@@ -246,23 +265,40 @@ int main(int argc, char const* const* argv)
         return 1;
     }
 
+    // Set up input stream
     std::istream* p_inputStream = nullptr;
     std::optional<std::ifstream> maybeInputFile;
 
     if (arguments.inputPath == "-") {
-        // Special case: read from the pipe
+        // Special case: read from the pipe.
         if (!std::cin.eof()) {
             p_inputStream = &std::cin;
         } else {
             std::cerr << "Error: requested to read input from the pipe, but it is closed.\n";
+            return 2;
         }
     } else {
+        // Otherwise read from a file.
         maybeInputFile.emplace(arguments.inputPath);
         p_inputStream = &maybeInputFile.value();
         if (!maybeInputFile.value().good()) {
             std::cerr << "Error: failed to open input file: " << arguments.inputPath << '\n';
-            return 2;
+            return 3;
         }
+    }
+
+    // Set up output stream
+    std::string outputPath = arguments.outputPath.string();
+    std::ostream* p_outputStream = nullptr;
+    std::optional<std::ofstream> maybeOutputFile;
+
+    if (arguments.outputPath == "-") {
+        // Special case: write to stdout.
+        p_outputStream = &std::cout;
+    } else {
+        // Otherwise write to a file.
+        maybeOutputFile.emplace(arguments.outputPath);
+        p_outputStream = &maybeOutputFile.value();
     }
 
     std::vector<unsigned char> image;
@@ -281,22 +317,22 @@ int main(int argc, char const* const* argv)
     #ifdef NDEBUG
     } catch (mtx2img::ParsingException& r_exception) {
         std::cerr << r_exception.what();
-        return 3;
+        return 4;
     } catch (mtx2img::InvalidFormat& r_exception) {
         std::cerr << r_exception.what();
-        return 4;
+        return 5;
     } catch (mtx2img::UnsupportedFormat& r_exception) {
         std::cerr << r_exception.what();
-        return 5;
+        return 6;
     } catch (std::invalid_argument& r_exception) {
         std::cerr << r_exception.what();
-        return 6;
+        return 7;
     }
     #endif
 
-    std::string outputPath = arguments.outputPath.string();
-    if (stbi_write_png(
-        outputPath.c_str(),                                                     // <== image path
+    if (stbi_write_png_to_func(
+        writeImageData,                                                         // <== write functor
+        reinterpret_cast<void*>(p_outputStream),                                // <== write context (output stream)
         arguments.width,                                                        // <== image width
         arguments.height,                                                       // <== image height
         image.size() / arguments.width / arguments.height,                      // <== number of color channels
