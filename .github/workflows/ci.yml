@@ -39,6 +39,9 @@ jobs:
       - name: Run tests
         run: |
           build/bin/mtx2img .github/assets/fidap005.mtx out.png
+          cat .github/assets/fidap005.mtx | build/bin/mtx2img - out.png
+          build/bin/mtx2img .github/assets/fidap005.mtx - > out.png
+          cat .github/assets/fidap005.mtx | build/bin/mtx2img - - > out.png
           build/bin/mtx2img .github/assets/fidap005.mtx out.png -w 10
           build/bin/mtx2img .github/assets/fidap005.mtx out.png -h 20
           build/bin/mtx2img .github/assets/fidap005.mtx out.png -w 10 -h 20
