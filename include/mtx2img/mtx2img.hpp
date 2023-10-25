@@ -30,7 +30,7 @@ enum class Data
 {
     Real,           // <== supported
     Integer,        // <== supported
-    Complex,        // <== unsupported, planned
+    Complex,        // <== supported
     Pattern         // <== supported
 }; // enum class Data
 
@@ -38,9 +38,9 @@ enum class Data
 enum class Structure
 {
     General,        // <== supported
-    Symmetric,      // <== unsupported, planned
-    SkewSymmetric,  // <== unsupported, planned
-    Hermitian       // <== unsupported, planned
+    Symmetric,      // <== supported
+    SkewSymmetric,  // <== supported
+    Hermitian       // <== supported
 }; // enum class Structure
 
 

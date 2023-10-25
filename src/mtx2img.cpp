@@ -383,12 +383,31 @@ format::Properties parseHeader(std::istream& r_stream,
 }
 
 
+template <class TTransform>
+void fillSymmetricPart(std::span<unsigned> nnzMap,
+                       std::pair<std::size_t,std::size_t> imageSize,
+                       TTransform&& r_transformFunctor)
+{
+    for (std::size_t i_row=1; i_row<imageSize.second; ++i_row) {
+        for (std::size_t i_column=0; i_column<i_row; ++i_column) {
+            const std::size_t i_flat = i_row * imageSize.first + i_column;
+            const std::size_t i_symmetric = i_column * imageSize.second + (i_row * imageSize.first / imageSize.second);
+            nnzMap[i_symmetric] = std::max(
+                r_transformFunctor(nnzMap[i_flat]),
+                nnzMap[i_flat]
+            );
+        }
+    }
+}
+
+
 void fill(std::istream& r_stream,
           std::pair<std::size_t,std::size_t> matrixSize,
           std::size_t nonzeros,
           std::span<unsigned char> image,
           std::pair<std::size_t,std::size_t> imageSize,
-          const std::string& r_colormapName)
+          const std::string& r_colormapName,
+          std::optional<format::Structure> maybeStructure)
 {
     // Nothing to do if the input size is null.
     if (matrixSize.first == 0ul || matrixSize.second == 0ul) {
@@ -470,6 +489,34 @@ void fill(std::istream& r_stream,
         return;
     }
 
+    // If the input was provided in symmetric format, the entries
+    // read so far were limited to the main diagonal and the lower
+    // triangle, so the upper triangle must be filled in separately.
+    // Note: currently, all options are handled in the same manner,
+    //       but once value-based intensity is enabled, skewness and
+    //       negative values will have to be considered.
+    if (maybeStructure.has_value()) {
+        switch (maybeStructure.value()) {
+            case format::Structure::General: break; // <== nothing to do
+            case format::Structure::Symmetric:
+                fillSymmetricPart(nnzMap,
+                                  imageSize,
+                                  [](unsigned v){return v;});
+                break;
+            case format::Structure::SkewSymmetric:
+                fillSymmetricPart(nnzMap,
+                                  imageSize,
+                                  [](unsigned v){return v;});
+                break;
+            case format::Structure::Hermitian:
+                fillSymmetricPart(nnzMap,
+                                  imageSize,
+                                  [](unsigned v){return v;});
+                break;
+            default: throw std::runtime_error("Missing fill strategy implementation for input matrix structure.");
+        }
+    }
+
     for (std::size_t i_pixel=0ul; i_pixel<pixelCount; ++i_pixel) {
         const std::size_t intensity = std::min<std::size_t>(0xff, 0xff - 0xff * nnzMap[i_pixel] / maxNnzCount);
         const auto& r_color = colormap[intensity];
@@ -517,7 +564,7 @@ std::vector<unsigned char> convert(std::istream& r_stream,
         switch (inputProperties.data.value()) {
             case format::Data::Real: break;     // <== ok
             case format::Data::Integer: break;  // <== ok
-            case format::Data::Complex: throw UnsupportedFormat("Error: complex value types are not supported yet.\n");
+            case format::Data::Complex: break;  // <== ok
             case format::Data::Pattern: break;  // <== ok
             default: throw UnsupportedFormat("Error: unsupported input value type.\n");
         }
@@ -526,10 +573,10 @@ std::vector<unsigned char> convert(std::istream& r_stream,
     // Validate object structure (optional qualifier - no error if missing)
     if (inputProperties.structure.has_value()) {
         switch (inputProperties.structure.value()) {
-            case format::Structure::General: break; // <== ok
-            case format::Structure::Symmetric: throw UnsupportedFormat("Error: symmetric input objects are not supported yet.\n");
-            case format::Structure::SkewSymmetric: throw UnsupportedFormat("Error: skew-symmetric input objects are not supported yet.\n");
-            case format::Structure::Hermitian: throw UnsupportedFormat("Error: hermitian input objects are not supported yet.\n");
+            case format::Structure::General: break;         // <== ok
+            case format::Structure::Symmetric: break;       // <== ok
+            case format::Structure::SkewSymmetric: break;   // <== ok
+            case format::Structure::Hermitian: break;       // <== ok
             default: throw UnsupportedFormat("Error: unsupported input object format.\n");
         }
     }
@@ -553,6 +600,7 @@ std::vector<unsigned char> convert(std::istream& r_stream,
     // Restrict output image size
     r_imageWidth = std::min(r_imageWidth, inputProperties.columns.value());
     r_imageHeight = std::min(r_imageHeight, inputProperties.rows.value());
+    const std::pair<std::size_t,std::size_t> imageSize {r_imageWidth, r_imageHeight};
 
     // Resize image to final size and initialize it to full white
     image.resize(r_imageWidth * r_imageHeight * CHANNELS, 0xff);
@@ -566,8 +614,9 @@ std::vector<unsigned char> convert(std::istream& r_stream,
         },
         inputProperties.nonzeros.value(),   // <== number of nonzero entries in matrix
         image,                              // <== buffer
-        {r_imageWidth, r_imageHeight},      // <== buffer dimensions
-        r_colormapName                      // <== name of the colormap to use
+        imageSize,                          // <== buffer dimensions
+        r_colormapName,                     // <== name of the colormap to use
+        inputProperties.structure           // <== input matrix symmetry
     );
 
     return image;
