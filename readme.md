@@ -17,7 +17,8 @@ Optional arguments:
 - `[-h <output-image-height>]`: height of the output image in pixels. This setting is overridden if the number of columns in the input matrix is less than the provided height. The default value is 1080.
 - `[-c <colormap-name>]`: name of the colormap to apply on pixels. The options are limited to `binary` (default) or `kindlmann`. If the matrix dimensions are larger than the output image dimensions, multiple nonzeros may end up getting mapped to the same pixel. The program sums up the number of nonzeros that reference each pixel, and normalizes this "*nonzero density*" after reading the matrix. The `-c` option controls how these densities are mapped to RGB colors in the output image.
    - `binary`: any pixel with at least one nonzero mapping to it is black; the rest are white.
-   - `kindlmann`: applies the [Kindlmann colormap](https://www.researchgate.net/publication/4006141_Face-based_luminance_matching_for_perceptual_colormap_generation) to densities.
+   - [`kindlmann`](https://www.kennethmoreland.com/color-advice/#extended-kindlmann) (extended)
+   - [`viridis`](https://www.kennethmoreland.com/color-advice/#viridis)
 
 ## Installation
 

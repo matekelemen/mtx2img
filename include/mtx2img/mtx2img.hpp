@@ -1,9 +1,8 @@
 #pragma once
 
 // --- STL Includes ---
-#include <iosfwd>
-#include <filesystem>
-#include <vector>
+#include <iosfwd> // istream
+#include <vector> // vector
 
 
 namespace mtx2img {

@@ -6,15 +6,15 @@
 #include "mtx2img/mtx2img.hpp"
 
 // --- STL Includes ---
-#include <fstream>
-#include <iostream>
-#include <map>
-#include <stdexcept>
-#include <string>
-#include <filesystem>
-#include <format>
-#include <type_traits>
-#include <optional>
+#include <fstream> // ifstream
+#include <iostream>  // cout, cerr
+#include <map> // map
+#include <stdexcept> // invalid_argument
+#include <string> // string
+#include <filesystem> // filesystem::path, filesystem::perm, filesystem::status, filesystem::file_type
+#include <format> // format
+#include <optional> // optional
+#include <set> // set
 
 
 const std::map<std::string,std::string> defaultArguments {
@@ -42,7 +42,7 @@ void printHelp()
         << "Options:\n"
         << "    -w <width>     : width of the output image in pixels (default: " << defaultArguments.at("-w") << ").\n"
         << "    -h <height>    : height of the output image in pixels (default: " << defaultArguments.at("-h") << ").\n"
-        << "    -c <colormap>  : colormap to use for per pixel nonzero density. Options: [binary, kindlmann] (default: "  << defaultArguments.at("-c") << ").\n"
+        << "    -c <colormap>  : colormap to use for per pixel nonzero density. Options: [binary, kindlmann, viridis] (default: "  << defaultArguments.at("-c") << ").\n"
         ;
 }
 
@@ -171,11 +171,13 @@ std::optional<Arguments> parseArguments(int argc, char const* const* argv)
 
     // Validate colormap
     arguments.colormap = argMap["-c"];
-    if (arguments.colormap != "binary" && arguments.colormap != "kindlmann") {
-        throw std::invalid_argument(std::format(
-            "Error: invalid colormap: {}\n",
-            arguments.colormap
-        ));
+    {
+        if (!std::set<std::string>({"binary", "kindlmann", "viridis"}).contains(arguments.colormap)) {
+            throw std::invalid_argument(std::format(
+                "Error: invalid colormap: {}\n",
+                arguments.colormap
+            ));
+        }
     }
 
     // Convert and validate width
