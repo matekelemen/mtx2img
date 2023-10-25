@@ -127,29 +127,31 @@ std::optional<Arguments> parseArguments(int argc, char const* const* argv)
     }
 
     // Validate input path
-    const auto inputStatus = std::filesystem::status(arguments.inputPath);
-    switch (inputStatus.type()) {
-        case std::filesystem::file_type::regular: break; // <== ok
-        case std::filesystem::file_type::none: throw std::invalid_argument(std::format(
-            "Error: input file does not exist: {}\n",
-            arguments.inputPath.string()
-        ));
-        case std::filesystem::file_type::directory: throw std::invalid_argument(std::format(
-            "Error: provided input path is a directory: {}\n",
-            arguments.inputPath.string()
-        ));
-        default: throw std::invalid_argument(std::format(
-            "Error: input is not a file: {}\n",
-            arguments.inputPath.string()
-        ));
-    }
+    if (arguments.inputPath != "-") {
+        const auto inputStatus = std::filesystem::status(arguments.inputPath);
+        switch (inputStatus.type()) {
+            case std::filesystem::file_type::regular: break; // <== ok
+            case std::filesystem::file_type::none: throw std::invalid_argument(std::format(
+                "Error: input file does not exist: {}\n",
+                arguments.inputPath.string()
+            ));
+            case std::filesystem::file_type::directory: throw std::invalid_argument(std::format(
+                "Error: provided input path is a directory: {}\n",
+                arguments.inputPath.string()
+            ));
+            default: throw std::invalid_argument(std::format(
+                "Error: input is not a file: {}\n",
+                arguments.inputPath.string()
+            ));
+        } // switch inputStatus
 
-    if ((inputStatus.permissions() & std::filesystem::perms::owner_read) == std::filesystem::perms::none) {
-        throw std::invalid_argument(std::format(
-            "Error: missing read access to input file {}\n",
-            arguments.inputPath.string()
-        ));
-    }
+        if ((inputStatus.permissions() & std::filesystem::perms::owner_read) == std::filesystem::perms::none) {
+            throw std::invalid_argument(std::format(
+                "Error: missing read access to input file {}\n",
+                arguments.inputPath.string()
+            ));
+        } // if !readPermission
+    } // if arguments.inputPath != "-"
 
     // Validate output path
     const auto outputStatus = std::filesystem::status(arguments.outputPath);
@@ -164,14 +166,14 @@ std::optional<Arguments> parseArguments(int argc, char const* const* argv)
             "Error: output already exists but is not a file: {}\n",
             arguments.outputPath.string()
         ));
-    }
+    } // switch outputStatus
 
     if ((outputStatus.permissions() & std::filesystem::perms::owner_write) == std::filesystem::perms::none) {
         throw std::invalid_argument(std::format(
             "Error: missing write access to output file {}\n",
             arguments.outputPath.string()
         ));
-    }
+    } // if !writePermission
 
     // Validate colormap
     arguments.colormap = argMap["-c"];
@@ -244,10 +246,23 @@ int main(int argc, char const* const* argv)
         return 1;
     }
 
-    std::ifstream inputFile(arguments.inputPath);
-    if (!inputFile.good()) {
-        std::cerr << "Error: failed to open input file: " << arguments.inputPath << '\n';
-        return 2;
+    std::istream* p_inputStream = nullptr;
+    std::optional<std::ifstream> maybeInputFile;
+
+    if (arguments.inputPath == "-") {
+        // Special case: read from the pipe
+        if (!std::cin.eof()) {
+            p_inputStream = &std::cin;
+        } else {
+            std::cerr << "Error: requested to read input from the pipe, but it is closed.\n";
+        }
+    } else {
+        maybeInputFile.emplace(arguments.inputPath);
+        p_inputStream = &maybeInputFile.value();
+        if (!maybeInputFile.value().good()) {
+            std::cerr << "Error: failed to open input file: " << arguments.inputPath << '\n';
+            return 2;
+        }
     }
 
     std::vector<unsigned char> image;
@@ -258,7 +273,7 @@ int main(int argc, char const* const* argv)
     // Parse the input file and fill an output image buffer
     // Note: the image gets resized if the matrix dimensions
     //       are smaller than the requested image dimensions.
-    image = mtx2img::convert(inputFile,
+    image = mtx2img::convert(*p_inputStream,
                              arguments.width,
                              arguments.height,
                              arguments.colormap);
