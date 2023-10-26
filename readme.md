@@ -10,7 +10,7 @@ Convert [sparse matrix market](https://math.nist.gov/MatrixMarket/formats.html#M
 
 Required arguments:
 - `<input-path>`: path pointing to an existing MatrixMarket file (*.mtx* or *.mm*). It must use the *coordinate* format (i.e.: represent a sparse matrix). Alternatively, `-` can be passed to read the same format from *stdin* instead of a file.
-- `<output-path>`: the output image will be written here. If a file already exists, it will be overwritten. If the path exists but is not a file, the program will without touching the output path. Alternatively, `-` can be passed to write the output image to *stdout*.
+- `<output-path>`: the output image will be written here. If a file already exists, it will be overwritten. If the path exists but is not a file, the program will fail without touching the output path. Alternatively, `-` can be passed to write the output image to *stdout*.
 
 Optional arguments:
 - `[-w <output-image-width>]`: width of the output image in pixels. This setting is overridden if the number of rows in the input matrix is less than the provided width. The default value is 1080.
