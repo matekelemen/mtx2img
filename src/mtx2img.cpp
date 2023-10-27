@@ -232,86 +232,90 @@ format::Properties parseHeader(std::istream& r_stream,
             ));
         }
 
+        #ifndef NDEBUG
+            // Print the header in debug mode.
+            std::cout << "mtx2img: " << inputBuffer.data() << "\n";
+        #endif
+
         // The first line must contain format properties.
         std::match_results<const std::string::value_type*> match;
         if (std::regex_match(inputBuffer.data(), match, formatPattern)) {
-            assert(2 <= match.size());
+            if (i_line == 0ul) {
+                assert(2 <= match.size());
 
-            // Parse object type (matrix, vector, etc.)
-            const std::string objectName = match.str(1);
-            if (objectName == "matrix") {
-                inputProperties.object = format::Object::Matrix;
-            } else if (objectName == "vector") {
-                inputProperties.object = format::Object::Vector;
-            } else {
-                throw InvalidFormat(std::format(
-                    "Error: invalid input object type: {}\n",
-                    objectName
-                ));
-            }
+                // Parse object type (matrix, vector, etc.)
+                const std::string objectName = match.str(1);
+                if (objectName == "matrix") {
+                    inputProperties.object = format::Object::Matrix;
+                } else if (objectName == "vector") {
+                    inputProperties.object = format::Object::Vector;
+                } else {
+                    throw InvalidFormat(std::format(
+                        "Error: invalid input object type: {}\n",
+                        objectName
+                    ));
+                }
 
-            // Parse format type (coordinate or array)
-            const std::string formatName = match.str(2);
-            if (formatName == "coordinate") {
-                inputProperties.format = format::Format::Coordinate;
-            } else if (formatName == "array") {
-                inputProperties.format = format::Format::Array;
-            } else {
-                throw InvalidFormat(std::format(
-                    "Error: invalid matrix format: {}\n",
-                    formatName
-                ));
-            }
+                // Parse format type (coordinate or array)
+                const std::string formatName = match.str(2);
+                if (formatName == "coordinate") {
+                    inputProperties.format = format::Format::Coordinate;
+                } else if (formatName == "array") {
+                    inputProperties.format = format::Format::Array;
+                } else {
+                    throw InvalidFormat(std::format(
+                        "Error: invalid matrix format: {}\n",
+                        formatName
+                    ));
+                }
 
-            // Loop over optional qualifiers (value type, symmetry)
-            if (3 < match.size()) {
-                const std::string qualifiers = match.str(3);
-                for (auto it_qualifier = std::sregex_iterator(qualifiers.begin(),
-                                                              qualifiers.end(),
-                                                              qualifierPattern);
-                          it_qualifier != std::sregex_iterator();
-                          ++it_qualifier) {
-                    const std::string qualifier = it_qualifier->str();
-                    if (qualifier == "real") {
-                        inputProperties.data = format::Data::Real;
-                    } else if (qualifier == "integer") {
-                        inputProperties.data = format::Data::Integer;
-                    } else if (qualifier == "complex") {
-                        inputProperties.data = format::Data::Complex;
-                    } else if (qualifier == "pattern") {
-                        inputProperties.data = format::Data::Pattern;
-                    } else if (qualifier == "general") {
-                        inputProperties.structure = format::Structure::General;
-                    } else if (qualifier == "symmetric") {
-                        inputProperties.structure = format::Structure::Symmetric;
-                    } else if (qualifier == "skew-symmetric") {
-                        inputProperties.structure = format::Structure::SkewSymmetric;
-                    } else if (qualifier == "hermitian") {
-                        inputProperties.structure = format::Structure::Hermitian;
-                    } else {
-                        throw InvalidFormat(std::format(
-                            "Error: invalid qualifier in input header: {}",
-                            qualifier
-                        ));
+                // Loop over optional qualifiers (value type, symmetry)
+                if (3 < match.size()) {
+                    const std::string qualifiers = match.str(3);
+                    for (auto it_qualifier = std::sregex_iterator(qualifiers.begin(),
+                                                                qualifiers.end(),
+                                                                qualifierPattern);
+                            it_qualifier != std::sregex_iterator();
+                            ++it_qualifier) {
+                        const std::string qualifier = it_qualifier->str();
+                        if (qualifier == "real") {
+                            inputProperties.data = format::Data::Real;
+                        } else if (qualifier == "integer") {
+                            inputProperties.data = format::Data::Integer;
+                        } else if (qualifier == "complex") {
+                            inputProperties.data = format::Data::Complex;
+                        } else if (qualifier == "pattern") {
+                            inputProperties.data = format::Data::Pattern;
+                        } else if (qualifier == "general") {
+                            inputProperties.structure = format::Structure::General;
+                        } else if (qualifier == "symmetric") {
+                            inputProperties.structure = format::Structure::Symmetric;
+                        } else if (qualifier == "skew-symmetric") {
+                            inputProperties.structure = format::Structure::SkewSymmetric;
+                        } else if (qualifier == "hermitian") {
+                            inputProperties.structure = format::Structure::Hermitian;
+                        } else {
+                            throw InvalidFormat(std::format(
+                                "Error: invalid qualifier in input header: {}",
+                                qualifier
+                            ));
+                        }
                     }
                 }
+            } // if i_line == 0
+
+            #ifndef NDEBUG
+            else {
+                // Warn if matrix properties are redefined.
+                std::cerr << "mtx2img: WARNING: input redefines matrix properties (redefined properties are ignored):\n";
             }
+            #endif
         } else if (i_line == 0ul) {
             throw ParsingException(std::format(
                 "Error: the first line of the input must begin with '%%MatrixMarket' and define the matrix format, but it is\n{}\n",
                 inputBuffer.data()
             ));
         }
-
-        #ifndef NDEBUG
-            else {
-                // Warn if this is not the first line but the comment
-                // line matches a property definition line
-                std::cerr << "mtx2img: WARNING: input redefines matrix properties (redefined properties are ignored):\n";
-            }
-            // Print the header in debug mode.
-            std::cout << "mtx2img: " << inputBuffer.data() << "\n";
-        #endif
 
         ++i_line;
     }
@@ -370,7 +374,7 @@ format::Properties parseHeader(std::istream& r_stream,
     r_stream.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
     #ifndef NDEBUG
-        std::cout << "mtx2img: --- END HEADER ---\n";
+        std::cout << "mtx2img: --- HEADER END ---\n";
 
         // Print matrix properties in debug mode
         std::cout << "mtx2img: input matrix properties:\n"
@@ -383,19 +387,39 @@ format::Properties parseHeader(std::istream& r_stream,
 }
 
 
+/**
+ */
 template <class TTransform>
 void fillSymmetricPart(std::span<unsigned> nnzMap,
                        std::pair<std::size_t,std::size_t> imageSize,
                        TTransform&& r_transformFunctor)
 {
-    for (std::size_t i_row=1; i_row<imageSize.second; ++i_row) {
-        for (std::size_t i_column=0; i_column<i_row; ++i_column) {
+    assert(nnzMap.size() == imageSize.first * imageSize.second);
+
+    for (std::size_t i_row=0; i_row<imageSize.second; ++i_row) {
+        if (i_row == 50) {
+        const std::size_t i_columnEnd = i_row * imageSize.first / imageSize.second;
+        for (std::size_t i_column=0; i_column<i_columnEnd; ++i_column) {
             const std::size_t i_flat = i_row * imageSize.first + i_column;
-            const std::size_t i_symmetric = i_column * imageSize.second + (i_row * imageSize.first / imageSize.second);
+            const std::size_t i_symmetric = i_column * imageSize.second + i_columnEnd;
+
+            #ifndef NDEBUG
+                if (nnzMap[i_flat]) {
+                    std::cout << std::format("({},{}) => ({},{})\n",
+                        i_row, i_column,
+                        i_symmetric / imageSize.first,
+                        i_symmetric % imageSize.first
+                    );
+                }
+            #endif
+
+            assert(i_flat < nnzMap.size());
+            //assert(i_symmetric < i_flat);
             nnzMap[i_symmetric] = std::max(
                 r_transformFunctor(nnzMap[i_flat]),
-                nnzMap[i_flat]
+                nnzMap[i_symmetric]
             );
+        }
         }
     }
 }
@@ -411,6 +435,9 @@ void fill(std::istream& r_stream,
 {
     // Nothing to do if the input size is null.
     if (matrixSize.first == 0ul || matrixSize.second == 0ul) {
+        #ifndef NDEBUG
+            std::cout << "mtx2img: nothing to do (degenerate input matrix).\n";
+        #endif
         if (nonzeros == 0ul) {
             return;
         } else {
@@ -425,6 +452,9 @@ void fill(std::istream& r_stream,
 
     // Nothing to do if the output size is null
     if (imageSize.first == 0ul || imageSize.second == 0ul) {
+        #ifndef NDEBUG
+            std::cout << "mtx2img: nothing to do (degenerate output image).\n";
+        #endif
         return;
     }
 
@@ -456,18 +486,7 @@ void fill(std::istream& r_stream,
             const std::size_t imageRow = row * imageSize.second / matrixSize.first;
             const std::size_t imageColumn = column * imageSize.first / matrixSize.second;
             const std::size_t i_flat = imageRow * imageSize.first + imageColumn;
-
-            #ifndef NDEBUG
-                // Print index violations in debug mode
-                if (nnzMap.size() <= i_flat) {
-                    std::cerr << "mtx2img: WARNING: index violation at "
-                              << "(" << row << "," << column << ") => "
-                              << "(" << imageRow << "," << imageColumn << ") => "
-                              << i_flat << " (image size: " << nnzMap.size() << ")\n";
-                    continue;
-                }
-            #endif
-
+            assert(i_flat < nnzMap.size());
             maxNnzCount = std::max(maxNnzCount, ++nnzMap[i_flat]);
         } else {
             break;
@@ -482,6 +501,10 @@ void fill(std::istream& r_stream,
             entryCount
         ));
     }
+
+    #ifndef NDEBUG
+        std::cout << std::format("mtx2img: highest nonzero density is {}\n", maxNnzCount);
+    #endif
 
     // No need to pass through the image again if no
     // entries were read.
@@ -601,6 +624,10 @@ std::vector<unsigned char> convert(std::istream& r_stream,
     r_imageWidth = std::min(r_imageWidth, inputProperties.columns.value());
     r_imageHeight = std::min(r_imageHeight, inputProperties.rows.value());
     const std::pair<std::size_t,std::size_t> imageSize {r_imageWidth, r_imageHeight};
+
+    #ifndef NDEBUG
+        std::cout << std::format("mtx2img: final image size is {}x{}\n", imageSize.first, imageSize.second);
+    #endif
 
     // Resize image to final size and initialize it to full white
     image.resize(r_imageWidth * r_imageHeight * CHANNELS, 0xff);
