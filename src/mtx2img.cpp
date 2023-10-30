@@ -387,41 +387,31 @@ format::Properties parseHeader(std::istream& r_stream,
 }
 
 
-/**
- */
+/// Generate the upper triangle from entries in the lower triangle.
 template <class TTransform>
 void fillSymmetricPart(std::span<unsigned> nnzMap,
                        std::pair<std::size_t,std::size_t> imageSize,
                        TTransform&& r_transformFunctor)
 {
+    // Check whether the provided sizes are consistent with the image buffer.
     assert(nnzMap.size() == imageSize.first * imageSize.second);
 
+    // Symmetric matrices must be square, and mtx2img keeps the aspect ratio
+    // of the input matrix.
+    assert(imageSize.first == imageSize.second);
+
     for (std::size_t i_row=0; i_row<imageSize.second; ++i_row) {
-        if (i_row == 50) {
-        const std::size_t i_columnEnd = i_row * imageSize.first / imageSize.second;
-        for (std::size_t i_column=0; i_column<i_columnEnd; ++i_column) {
+        for (std::size_t i_column=0; i_column<i_row; ++i_column) {
             const std::size_t i_flat = i_row * imageSize.first + i_column;
-            const std::size_t i_symmetric = i_column * imageSize.second + i_columnEnd;
+            const std::size_t i_symmetric = i_column * imageSize.first + i_row;
 
-            #ifndef NDEBUG
-                if (nnzMap[i_flat]) {
-                    std::cout << std::format("({},{}) => ({},{})\n",
-                        i_row, i_column,
-                        i_symmetric / imageSize.first,
-                        i_symmetric % imageSize.first
-                    );
-                }
-            #endif
+            // Debug check: the upper triangle should be empty if the
+            // symmetric qualifier was set.
+            assert(!nnzMap[i_symmetric]);
 
-            assert(i_flat < nnzMap.size());
-            //assert(i_symmetric < i_flat);
-            nnzMap[i_symmetric] = std::max(
-                r_transformFunctor(nnzMap[i_flat]),
-                nnzMap[i_symmetric]
-            );
-        }
-        }
-    }
+            nnzMap[i_symmetric] = r_transformFunctor(nnzMap[i_flat]);
+        } // for i_column
+    } // for i_row
 }
 
 
@@ -540,6 +530,7 @@ void fill(std::istream& r_stream,
         }
     }
 
+    // Apply the colormap and fill the image buffer
     for (std::size_t i_pixel=0ul; i_pixel<pixelCount; ++i_pixel) {
         const std::size_t intensity = std::min<std::size_t>(0xff, 0xff - 0xff * nnzMap[i_pixel] / maxNnzCount);
         const auto& r_color = colormap[intensity];
@@ -606,31 +597,41 @@ std::vector<unsigned char> convert(std::istream& r_stream,
 
     #ifndef NDEBUG
         // Print changes to the output dimension in debug mode
-        if (static_cast<std::size_t>(inputProperties.columns.value()) < r_imageWidth) {
-            std::cout << "mtx2img: restricting image width from "
-                      << r_imageWidth << " to "
-                      << inputProperties.columns.value()
-                      << '\n';
-        }
-        if (inputProperties.rows.value() < r_imageHeight) {
-            std::cout << "mtx2img: restricting image height from "
-                      << r_imageHeight << " to "
-                      << inputProperties.rows.value()
-                      << '\n';
+        const bool resize = inputProperties.columns.value() < static_cast<std::size_t>(r_imageWidth)
+                         || inputProperties.rows.value() < static_cast<std::size_t>(r_imageHeight);
+        const std::pair<std::size_t,std::size_t> requestedImageSize {r_imageWidth, r_imageHeight};
+        if (resize) {
+            std::cout << "mtx2img: restricting image size ";
         }
     #endif
 
     // Restrict output image size
-    r_imageWidth = std::min(r_imageWidth, inputProperties.columns.value());
-    r_imageHeight = std::min(r_imageHeight, inputProperties.rows.value());
-    const std::pair<std::size_t,std::size_t> imageSize {r_imageWidth, r_imageHeight};
+    if (inputProperties.columns.value() < r_imageWidth) {
+        r_imageWidth = inputProperties.columns.value();
+        r_imageHeight = inputProperties.rows.value() * inputProperties.columns.value() / r_imageWidth;
+    }
+
+    if (inputProperties.rows.value() < r_imageHeight) {
+        r_imageHeight = inputProperties.rows.value();
+        r_imageWidth = inputProperties.columns.value() * inputProperties.rows.value() / r_imageHeight;
+    }
 
     #ifndef NDEBUG
-        std::cout << std::format("mtx2img: final image size is {}x{}\n", imageSize.first, imageSize.second);
+        // Print changes to the output dimension in debug mode
+        if (resize) {
+            std::cout << std::format("from {}x{} to {}x{}\n",
+                requestedImageSize.first,
+                requestedImageSize.second,
+                r_imageWidth,
+                r_imageHeight
+            );
+        }
     #endif
 
-    // Resize image to final size and initialize it to full white
-    image.resize(r_imageWidth * r_imageHeight * CHANNELS, 0xff);
+    const std::pair<std::size_t,std::size_t> imageSize {r_imageWidth, r_imageHeight};
+
+    // Resize image buffer to final size and initialize it to full white
+    image.resize(imageSize.first * imageSize.second * CHANNELS, 0xff);
 
     // Parse input stream and fill output image buffer
     fill(

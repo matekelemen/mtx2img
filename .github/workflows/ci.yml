@@ -42,12 +42,10 @@ jobs:
           cat .github/assets/fidap005.mtx | build/bin/mtx2img - out.png
           build/bin/mtx2img .github/assets/fidap005.mtx - > out.png
           cat .github/assets/fidap005.mtx | build/bin/mtx2img - - > out.png
-          build/bin/mtx2img .github/assets/fidap005.mtx out.png -w 10
-          build/bin/mtx2img .github/assets/fidap005.mtx out.png -h 20
-          build/bin/mtx2img .github/assets/fidap005.mtx out.png -w 10 -h 20
-          build/bin/mtx2img .github/assets/fidap005.mtx out.png -w 10 -h 20 -c binary
-          build/bin/mtx2img .github/assets/fidap005.mtx out.png -w 10 -h 20 -c kindlmann
-          build/bin/mtx2img .github/assets/fidap005.mtx out.png -w 10 -h 20 -c viridis
+          build/bin/mtx2img .github/assets/fidap005.mtx out.png -r 10
+          build/bin/mtx2img .github/assets/fidap005.mtx out.png -r 10 -c binary
+          build/bin/mtx2img .github/assets/fidap005.mtx out.png -r 10 -c kindlmann
+          build/bin/mtx2img .github/assets/fidap005.mtx out.png -r 10 -c viridis
           build/bin/mtx2img --help
 
   package:

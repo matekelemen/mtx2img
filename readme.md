@@ -6,15 +6,14 @@ Convert [sparse matrix market](https://math.nist.gov/MatrixMarket/formats.html#M
 <img src=".github/assets/cube_isoparametric_quadratic_tets.png" width=300/> <img src=".github/assets/rbs480a.png" width=300/>
 </p>
 
-`mtx2img <input-path> <output-path> [-w <output-image-width>] [-h <output-image-height>] [-c <colormap-name>]`
+`mtx2img <input-path> <output-path> [-r <output-resolution>] [-c <colormap-name>]`
 
 Required arguments:
 - `<input-path>`: path pointing to an existing MatrixMarket file (*.mtx* or *.mm*). It must use the *coordinate* format (i.e.: represent a sparse matrix). Alternatively, `-` can be passed to read the same format from *stdin* instead of a file.
 - `<output-path>`: the output image will be written here. If a file already exists, it will be overwritten. If the path exists but is not a file, the program will fail without touching the output path. Alternatively, `-` can be passed to write the output image to *stdout*.
 
 Optional arguments:
-- `[-w <output-image-width>]`: width of the output image in pixels. This setting is overridden if the number of rows in the input matrix is less than the provided width. The default value is 1080.
-- `[-h <output-image-height>]`: height of the output image in pixels. This setting is overridden if the number of columns in the input matrix is less than the provided height. The default value is 1080.
+- `[-r <output-resolution>]`: highest resolution of the output image in pixels. This setting is overridden if the number of rows or columns in the input matrix is less than the provided width, but the its aspect ratio as always preserved (closest ratio representable by the requested resolution). The default value is 1080.
 - `[-c <colormap-name>]`: name of the colormap to apply on pixels. The options are limited to `binary` (default) or `kindlmann`. If the matrix dimensions are larger than the output image dimensions, multiple nonzeros may end up getting mapped to the same pixel. The program sums up the number of nonzeros that reference each pixel, and normalizes this "*nonzero density*" after reading the matrix. The `-c` option controls how these densities are mapped to RGB colors in the output image.
    - `binary`: any pixel with at least one nonzero mapping to it is black; the rest are white.
    - [`kindlmann`](https://www.kennethmoreland.com/color-advice/#extended-kindlmann) (extended)
