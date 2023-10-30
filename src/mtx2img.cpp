@@ -232,86 +232,90 @@ format::Properties parseHeader(std::istream& r_stream,
             ));
         }
 
+        #ifndef NDEBUG
+            // Print the header in debug mode.
+            std::cout << "mtx2img: " << inputBuffer.data() << "\n";
+        #endif
+
         // The first line must contain format properties.
         std::match_results<const std::string::value_type*> match;
         if (std::regex_match(inputBuffer.data(), match, formatPattern)) {
-            assert(2 <= match.size());
+            if (i_line == 0ul) {
+                assert(2 <= match.size());
 
-            // Parse object type (matrix, vector, etc.)
-            const std::string objectName = match.str(1);
-            if (objectName == "matrix") {
-                inputProperties.object = format::Object::Matrix;
-            } else if (objectName == "vector") {
-                inputProperties.object = format::Object::Vector;
-            } else {
-                throw InvalidFormat(std::format(
-                    "Error: invalid input object type: {}\n",
-                    objectName
-                ));
-            }
+                // Parse object type (matrix, vector, etc.)
+                const std::string objectName = match.str(1);
+                if (objectName == "matrix") {
+                    inputProperties.object = format::Object::Matrix;
+                } else if (objectName == "vector") {
+                    inputProperties.object = format::Object::Vector;
+                } else {
+                    throw InvalidFormat(std::format(
+                        "Error: invalid input object type: {}\n",
+                        objectName
+                    ));
+                }
 
-            // Parse format type (coordinate or array)
-            const std::string formatName = match.str(2);
-            if (formatName == "coordinate") {
-                inputProperties.format = format::Format::Coordinate;
-            } else if (formatName == "array") {
-                inputProperties.format = format::Format::Array;
-            } else {
-                throw InvalidFormat(std::format(
-                    "Error: invalid matrix format: {}\n",
-                    formatName
-                ));
-            }
+                // Parse format type (coordinate or array)
+                const std::string formatName = match.str(2);
+                if (formatName == "coordinate") {
+                    inputProperties.format = format::Format::Coordinate;
+                } else if (formatName == "array") {
+                    inputProperties.format = format::Format::Array;
+                } else {
+                    throw InvalidFormat(std::format(
+                        "Error: invalid matrix format: {}\n",
+                        formatName
+                    ));
+                }
 
-            // Loop over optional qualifiers (value type, symmetry)
-            if (3 < match.size()) {
-                const std::string qualifiers = match.str(3);
-                for (auto it_qualifier = std::sregex_iterator(qualifiers.begin(),
-                                                              qualifiers.end(),
-                                                              qualifierPattern);
-                          it_qualifier != std::sregex_iterator();
-                          ++it_qualifier) {
-                    const std::string qualifier = it_qualifier->str();
-                    if (qualifier == "real") {
-                        inputProperties.data = format::Data::Real;
-                    } else if (qualifier == "integer") {
-                        inputProperties.data = format::Data::Integer;
-                    } else if (qualifier == "complex") {
-                        inputProperties.data = format::Data::Complex;
-                    } else if (qualifier == "pattern") {
-                        inputProperties.data = format::Data::Pattern;
-                    } else if (qualifier == "general") {
-                        inputProperties.structure = format::Structure::General;
-                    } else if (qualifier == "symmetric") {
-                        inputProperties.structure = format::Structure::Symmetric;
-                    } else if (qualifier == "skew-symmetric") {
-                        inputProperties.structure = format::Structure::SkewSymmetric;
-                    } else if (qualifier == "hermitian") {
-                        inputProperties.structure = format::Structure::Hermitian;
-                    } else {
-                        throw InvalidFormat(std::format(
-                            "Error: invalid qualifier in input header: {}",
-                            qualifier
-                        ));
+                // Loop over optional qualifiers (value type, symmetry)
+                if (3 < match.size()) {
+                    const std::string qualifiers = match.str(3);
+                    for (auto it_qualifier = std::sregex_iterator(qualifiers.begin(),
+                                                                qualifiers.end(),
+                                                                qualifierPattern);
+                            it_qualifier != std::sregex_iterator();
+                            ++it_qualifier) {
+                        const std::string qualifier = it_qualifier->str();
+                        if (qualifier == "real") {
+                            inputProperties.data = format::Data::Real;
+                        } else if (qualifier == "integer") {
+                            inputProperties.data = format::Data::Integer;
+                        } else if (qualifier == "complex") {
+                            inputProperties.data = format::Data::Complex;
+                        } else if (qualifier == "pattern") {
+                            inputProperties.data = format::Data::Pattern;
+                        } else if (qualifier == "general") {
+                            inputProperties.structure = format::Structure::General;
+                        } else if (qualifier == "symmetric") {
+                            inputProperties.structure = format::Structure::Symmetric;
+                        } else if (qualifier == "skew-symmetric") {
+                            inputProperties.structure = format::Structure::SkewSymmetric;
+                        } else if (qualifier == "hermitian") {
+                            inputProperties.structure = format::Structure::Hermitian;
+                        } else {
+                            throw InvalidFormat(std::format(
+                                "Error: invalid qualifier in input header: {}",
+                                qualifier
+                            ));
+                        }
                     }
                 }
+            } // if i_line == 0
+
+            #ifndef NDEBUG
+            else {
+                // Warn if matrix properties are redefined.
+                std::cerr << "mtx2img: WARNING: input redefines matrix properties (redefined properties are ignored):\n";
             }
+            #endif
         } else if (i_line == 0ul) {
             throw ParsingException(std::format(
                 "Error: the first line of the input must begin with '%%MatrixMarket' and define the matrix format, but it is\n{}\n",
                 inputBuffer.data()
             ));
         }
-
-        #ifndef NDEBUG
-            else {
-                // Warn if this is not the first line but the comment
-                // line matches a property definition line
-                std::cerr << "mtx2img: WARNING: input redefines matrix properties (redefined properties are ignored):\n";
-            }
-            // Print the header in debug mode.
-            std::cout << "mtx2img: " << inputBuffer.data() << "\n";
-        #endif
 
         ++i_line;
     }
@@ -370,7 +374,7 @@ format::Properties parseHeader(std::istream& r_stream,
     r_stream.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
     #ifndef NDEBUG
-        std::cout << "mtx2img: --- END HEADER ---\n";
+        std::cout << "mtx2img: --- HEADER END ---\n";
 
         // Print matrix properties in debug mode
         std::cout << "mtx2img: input matrix properties:\n"
@@ -383,15 +387,47 @@ format::Properties parseHeader(std::istream& r_stream,
 }
 
 
+/// Generate the upper triangle from entries in the lower triangle.
+template <class TTransform>
+void fillSymmetricPart(std::span<unsigned> nnzMap,
+                       std::pair<std::size_t,std::size_t> imageSize,
+                       TTransform&& r_transformFunctor)
+{
+    // Check whether the provided sizes are consistent with the image buffer.
+    assert(nnzMap.size() == imageSize.first * imageSize.second);
+
+    // Symmetric matrices must be square, and mtx2img keeps the aspect ratio
+    // of the input matrix.
+    assert(imageSize.first == imageSize.second);
+
+    for (std::size_t i_row=0; i_row<imageSize.second; ++i_row) {
+        for (std::size_t i_column=0; i_column<i_row; ++i_column) {
+            const std::size_t i_flat = i_row * imageSize.first + i_column;
+            const std::size_t i_symmetric = i_column * imageSize.first + i_row;
+
+            // Debug check: the upper triangle should be empty if the
+            // symmetric qualifier was set.
+            assert(!nnzMap[i_symmetric]);
+
+            nnzMap[i_symmetric] = r_transformFunctor(nnzMap[i_flat]);
+        } // for i_column
+    } // for i_row
+}
+
+
 void fill(std::istream& r_stream,
           std::pair<std::size_t,std::size_t> matrixSize,
           std::size_t nonzeros,
           std::span<unsigned char> image,
           std::pair<std::size_t,std::size_t> imageSize,
-          const std::string& r_colormapName)
+          const std::string& r_colormapName,
+          std::optional<format::Structure> maybeStructure)
 {
     // Nothing to do if the input size is null.
     if (matrixSize.first == 0ul || matrixSize.second == 0ul) {
+        #ifndef NDEBUG
+            std::cout << "mtx2img: nothing to do (degenerate input matrix).\n";
+        #endif
         if (nonzeros == 0ul) {
             return;
         } else {
@@ -406,6 +442,9 @@ void fill(std::istream& r_stream,
 
     // Nothing to do if the output size is null
     if (imageSize.first == 0ul || imageSize.second == 0ul) {
+        #ifndef NDEBUG
+            std::cout << "mtx2img: nothing to do (degenerate output image).\n";
+        #endif
         return;
     }
 
@@ -437,18 +476,7 @@ void fill(std::istream& r_stream,
             const std::size_t imageRow = row * imageSize.second / matrixSize.first;
             const std::size_t imageColumn = column * imageSize.first / matrixSize.second;
             const std::size_t i_flat = imageRow * imageSize.first + imageColumn;
-
-            #ifndef NDEBUG
-                // Print index violations in debug mode
-                if (nnzMap.size() <= i_flat) {
-                    std::cerr << "mtx2img: WARNING: index violation at "
-                              << "(" << row << "," << column << ") => "
-                              << "(" << imageRow << "," << imageColumn << ") => "
-                              << i_flat << " (image size: " << nnzMap.size() << ")\n";
-                    continue;
-                }
-            #endif
-
+            assert(i_flat < nnzMap.size());
             maxNnzCount = std::max(maxNnzCount, ++nnzMap[i_flat]);
         } else {
             break;
@@ -464,12 +492,45 @@ void fill(std::istream& r_stream,
         ));
     }
 
+    #ifndef NDEBUG
+        std::cout << std::format("mtx2img: highest nonzero density is {}\n", maxNnzCount);
+    #endif
+
     // No need to pass through the image again if no
     // entries were read.
     if (maxNnzCount == 0) {
         return;
     }
 
+    // If the input was provided in symmetric format, the entries
+    // read so far were limited to the main diagonal and the lower
+    // triangle, so the upper triangle must be filled in separately.
+    // Note: currently, all options are handled in the same manner,
+    //       but once value-based intensity is enabled, skewness and
+    //       negative values will have to be considered.
+    if (maybeStructure.has_value()) {
+        switch (maybeStructure.value()) {
+            case format::Structure::General: break; // <== nothing to do
+            case format::Structure::Symmetric:
+                fillSymmetricPart(nnzMap,
+                                  imageSize,
+                                  [](unsigned v){return v;});
+                break;
+            case format::Structure::SkewSymmetric:
+                fillSymmetricPart(nnzMap,
+                                  imageSize,
+                                  [](unsigned v){return v;});
+                break;
+            case format::Structure::Hermitian:
+                fillSymmetricPart(nnzMap,
+                                  imageSize,
+                                  [](unsigned v){return v;});
+                break;
+            default: throw std::runtime_error("Missing fill strategy implementation for input matrix structure.");
+        }
+    }
+
+    // Apply the colormap and fill the image buffer
     for (std::size_t i_pixel=0ul; i_pixel<pixelCount; ++i_pixel) {
         const std::size_t intensity = std::min<std::size_t>(0xff, 0xff - 0xff * nnzMap[i_pixel] / maxNnzCount);
         const auto& r_color = colormap[intensity];
@@ -517,7 +578,7 @@ std::vector<unsigned char> convert(std::istream& r_stream,
         switch (inputProperties.data.value()) {
             case format::Data::Real: break;     // <== ok
             case format::Data::Integer: break;  // <== ok
-            case format::Data::Complex: throw UnsupportedFormat("Error: complex value types are not supported yet.\n");
+            case format::Data::Complex: break;  // <== ok
             case format::Data::Pattern: break;  // <== ok
             default: throw UnsupportedFormat("Error: unsupported input value type.\n");
         }
@@ -526,36 +587,51 @@ std::vector<unsigned char> convert(std::istream& r_stream,
     // Validate object structure (optional qualifier - no error if missing)
     if (inputProperties.structure.has_value()) {
         switch (inputProperties.structure.value()) {
-            case format::Structure::General: break; // <== ok
-            case format::Structure::Symmetric: throw UnsupportedFormat("Error: symmetric input objects are not supported yet.\n");
-            case format::Structure::SkewSymmetric: throw UnsupportedFormat("Error: skew-symmetric input objects are not supported yet.\n");
-            case format::Structure::Hermitian: throw UnsupportedFormat("Error: hermitian input objects are not supported yet.\n");
+            case format::Structure::General: break;         // <== ok
+            case format::Structure::Symmetric: break;       // <== ok
+            case format::Structure::SkewSymmetric: break;   // <== ok
+            case format::Structure::Hermitian: break;       // <== ok
             default: throw UnsupportedFormat("Error: unsupported input object format.\n");
         }
     }
 
     #ifndef NDEBUG
         // Print changes to the output dimension in debug mode
-        if (static_cast<std::size_t>(inputProperties.columns.value()) < r_imageWidth) {
-            std::cout << "mtx2img: restricting image width from "
-                      << r_imageWidth << " to "
-                      << inputProperties.columns.value()
-                      << '\n';
-        }
-        if (inputProperties.rows.value() < r_imageHeight) {
-            std::cout << "mtx2img: restricting image height from "
-                      << r_imageHeight << " to "
-                      << inputProperties.rows.value()
-                      << '\n';
+        const bool resize = inputProperties.columns.value() < static_cast<std::size_t>(r_imageWidth)
+                         || inputProperties.rows.value() < static_cast<std::size_t>(r_imageHeight);
+        const std::pair<std::size_t,std::size_t> requestedImageSize {r_imageWidth, r_imageHeight};
+        if (resize) {
+            std::cout << "mtx2img: restricting image size ";
         }
     #endif
 
     // Restrict output image size
-    r_imageWidth = std::min(r_imageWidth, inputProperties.columns.value());
-    r_imageHeight = std::min(r_imageHeight, inputProperties.rows.value());
+    if (inputProperties.columns.value() < r_imageWidth) {
+        r_imageWidth = inputProperties.columns.value();
+        r_imageHeight = inputProperties.rows.value() * inputProperties.columns.value() / r_imageWidth;
+    }
 
-    // Resize image to final size and initialize it to full white
-    image.resize(r_imageWidth * r_imageHeight * CHANNELS, 0xff);
+    if (inputProperties.rows.value() < r_imageHeight) {
+        r_imageHeight = inputProperties.rows.value();
+        r_imageWidth = inputProperties.columns.value() * inputProperties.rows.value() / r_imageHeight;
+    }
+
+    #ifndef NDEBUG
+        // Print changes to the output dimension in debug mode
+        if (resize) {
+            std::cout << std::format("from {}x{} to {}x{}\n",
+                requestedImageSize.first,
+                requestedImageSize.second,
+                r_imageWidth,
+                r_imageHeight
+            );
+        }
+    #endif
+
+    const std::pair<std::size_t,std::size_t> imageSize {r_imageWidth, r_imageHeight};
+
+    // Resize image buffer to final size and initialize it to full white
+    image.resize(imageSize.first * imageSize.second * CHANNELS, 0xff);
 
     // Parse input stream and fill output image buffer
     fill(
@@ -566,8 +642,9 @@ std::vector<unsigned char> convert(std::istream& r_stream,
         },
         inputProperties.nonzeros.value(),   // <== number of nonzero entries in matrix
         image,                              // <== buffer
-        {r_imageWidth, r_imageHeight},      // <== buffer dimensions
-        r_colormapName                      // <== name of the colormap to use
+        imageSize,                          // <== buffer dimensions
+        r_colormapName,                     // <== name of the colormap to use
+        inputProperties.structure           // <== input matrix symmetry
     );
 
     return image;

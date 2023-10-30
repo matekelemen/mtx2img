@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - master
+    paths-ignore:
+      - "*.md"
+      - "*.gitignore"
+      - "*.txt"
+      - "!CMakeLists.txt"
+      - "*.png"
+      - "*.mtx"
+      - "*.mm"
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  testrunner:
+    strategy:
+      fail-fast: false
+      matrix:
+        sanitizer: [address, thread, undefined]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install toolchain
+        run: sudo apt install gcc-13 g++-13
+      - name: Clone repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Build
+        run: |
+          ./build.sh                                  \
+            -t Debug                                  \
+            -o "-DCMAKE_CXX_COMPILER=/usr/bin/g++-13" \
+            -o "-DCMAKE_CXX_FLAGS=-fsanitize=${{ matrix.sanitizer }}"
+      - name: Run tests
+        run: |
+          build/bin/mtx2img .github/assets/fidap005.mtx out.png
+          cat .github/assets/fidap005.mtx | build/bin/mtx2img - out.png
+          build/bin/mtx2img .github/assets/fidap005.mtx - > out.png
+          cat .github/assets/fidap005.mtx | build/bin/mtx2img - - > out.png
+          build/bin/mtx2img .github/assets/fidap005.mtx out.png -r 10
+          build/bin/mtx2img .github/assets/fidap005.mtx out.png -r 10 -c binary
+          build/bin/mtx2img .github/assets/fidap005.mtx out.png -r 10 -c kindlmann
+          build/bin/mtx2img .github/assets/fidap005.mtx out.png -r 10 -c viridis
+          build/bin/mtx2img --help

@@ -22,8 +22,7 @@
  *  - binary colormap (any pixel with a nonzero is black, rest are white)
  */
 const std::map<std::string,std::string> defaultArguments {
-    {"-w", "1080"},
-    {"-h", "1080"},
+    {"-r", "1080"},
     {"-c", "binary"}
 };
 
@@ -32,8 +31,7 @@ struct Arguments
 {
     std::filesystem::path inputPath;
     std::filesystem::path outputPath;
-    std::size_t width;
-    std::size_t height;
+    std::size_t resolution;
     std::string colormap;
 }; // struct Arguments
 
@@ -44,13 +42,12 @@ void printHelp()
         << "Help: convert large sparse matrices from MatrixMarket format to images.\n"
         << "Usage: mtx2img <path-to-source> <path-to-output> [OPTION ARGUMENT] ...\n"
         << "Options:\n"
-        << "    -w <width>     : width of the output image in pixels (default: " << defaultArguments.at("-w") << ").\n"
-        << "    -h <height>    : height of the output image in pixels (default: " << defaultArguments.at("-h") << ").\n"
-        << "    -c <colormap>  : colormap to use for per pixel nonzero density. Options: [binary, kindlmann, viridis] (default: "  << defaultArguments.at("-c") << ").\n"
+        << "    -r <resolution>  : highest resolution of the output image in pixels (default: " << defaultArguments.at("-r") << ").\n"
+        << "    -c <colormap>    : colormap to use for per pixel nonzero density. Options: [binary, kindlmann, viridis] (default: "  << defaultArguments.at("-c") << ").\n"
         << "\n"
         << "The input path must point to an existing MatrixMarket file (or pass '-' to read the same format from stdin).\n"
         << "The parent directory of the output path must exist, and the output path is assumed to either not exist, or\n"
-        << "point to an existing file (in which case it will be overwritten)."
+        << "point to an existing file (in which case it will be overwritten).\n"
         ;
 }
 
@@ -192,42 +189,23 @@ std::optional<Arguments> parseArguments(int argc, char const* const* argv)
         }
     }
 
-    // Convert and validate width
+    // Convert and validate resolution
     char* it_end = nullptr;
-    std::string& r_widthString = argMap["-w"];
-    const long long width = std::strtoll(r_widthString.data(), &it_end, 0);
-    if (it_end < r_widthString.data() ||
-        static_cast<std::size_t>(std::distance(r_widthString.data(), it_end)) != r_widthString.size()) {
+    const std::string& r_resolutionString = argMap["-r"];
+    const long long resolution = std::strtoll(r_resolutionString.data(), &it_end, 0);
+    if (it_end < r_resolutionString.data() ||
+        static_cast<std::size_t>(std::distance(r_resolutionString.data(), static_cast<const char*>(it_end))) != r_resolutionString.size()) {
         throw std::invalid_argument(std::format(
-            "Error: invalid output image width: {}\n",
-            r_widthString
+            "Error: invalid output image resolution: {}\n",
+            r_resolutionString
         ));
-    } else if (width < 0) {
+    } else if (resolution < 0) {
         throw std::invalid_argument(std::format(
-            "Error: negative output image width: {}\n",
-            r_widthString
-        ));
-    } else {
-        arguments.width = static_cast<std::size_t>(width);
-    }
-
-    // Convert and validate height
-    it_end = nullptr;
-    std::string& r_heightString = argMap["-h"];
-    const long long height = std::strtoll(r_heightString.data(), &it_end, 0);
-    if (it_end < r_heightString.data() ||
-        static_cast<std::size_t>(std::distance(r_heightString.data(), it_end)) != r_heightString.size()) {
-        throw std::invalid_argument(std::format(
-            "Error: invalid output image height: {}\n",
-            r_heightString
-        ));
-    } else if (height < 0) {
-        throw std::invalid_argument(std::format(
-            "Error: negative output image height: {}\n",
-            r_heightString
+            "Error: negative output image resolution: {}\n",
+            r_resolutionString
         ));
     } else {
-        arguments.height = static_cast<std::size_t>(height);
+        arguments.resolution = static_cast<std::size_t>(resolution);
     }
 
     return arguments;
@@ -288,7 +266,7 @@ int main(int argc, char const* const* argv)
     }
 
     // Set up output stream
-    std::string outputPath = arguments.outputPath.string();
+    const std::string outputPath = arguments.outputPath.string();
     std::ostream* p_outputStream = nullptr;
     std::optional<std::ofstream> maybeOutputFile;
 
@@ -302,6 +280,11 @@ int main(int argc, char const* const* argv)
     }
 
     std::vector<unsigned char> image;
+    std::pair<
+        std::size_t,    // <== width
+        std::size_t     // <== height
+    > imageSize {arguments.resolution, arguments.resolution};
+
     #ifdef NDEBUG
     try {
     #endif
@@ -310,8 +293,8 @@ int main(int argc, char const* const* argv)
     // Note: the image gets resized if the matrix dimensions
     //       are smaller than the requested image dimensions.
     image = mtx2img::convert(*p_inputStream,
-                             arguments.width,
-                             arguments.height,
+                             imageSize.first,
+                             imageSize.second,
                              arguments.colormap);
 
     #ifdef NDEBUG
@@ -333,11 +316,11 @@ int main(int argc, char const* const* argv)
     if (stbi_write_png_to_func(
         writeImageData,                                                         // <== write functor
         reinterpret_cast<void*>(p_outputStream),                                // <== write context (output stream)
-        arguments.width,                                                        // <== image width
-        arguments.height,                                                       // <== image height
-        image.size() / arguments.width / arguments.height,                      // <== number of color channels
+        imageSize.first,                                                        // <== image width
+        imageSize.second,                                                       // <== image height
+        image.size() / imageSize.first / imageSize.second,                      // <== number of color channels
         static_cast<const void*>(image.data()),                                 // <== pointer to image data
-        image.size() / arguments.height * sizeof(decltype(image)::value_type)   // <== bytes per row
+        image.size() / imageSize.second * sizeof(decltype(image)::value_type)   // <== bytes per row
         ) == 0) {
             std::cerr << "Error: failed to write output image.\n";
             return 1;
