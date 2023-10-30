@@ -1,3 +1,4 @@
 /*
 !.gitignore
-!ci.yml
+!testrunner.yml
+!packager.yml
