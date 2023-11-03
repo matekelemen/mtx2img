@@ -473,6 +473,18 @@ void fill(std::istream& r_stream,
             ++entryCount;
             const std::size_t row = maybePosition->first;
             const std::size_t column = maybePosition->second;
+
+            #ifndef NDEBUG
+                if (matrixSize.first <= row) {
+                    std::cerr << std::format("mtx2img: row index {} is out of bounds {} at entry {}\n",
+                                             row, matrixSize.first, entryCount);
+                }
+                if (matrixSize.second <= column) {
+                    std::cerr << std::format("mtx2img: column index {} is out of bounds {} at entry {}\n",
+                                             column, matrixSize.second, entryCount);
+                }
+            #endif
+
             const std::size_t imageRow = row * imageSize.second / matrixSize.first;
             const std::size_t imageColumn = column * imageSize.first / matrixSize.second;
             const std::size_t i_flat = imageRow * imageSize.first + imageColumn;
