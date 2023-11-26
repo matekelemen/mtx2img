@@ -609,13 +609,17 @@ std::vector<unsigned char> convert(std::istream& r_stream,
 
     #ifndef NDEBUG
         // Print changes to the output dimension in debug mode
-        const bool resize = inputProperties.columns.value() < static_cast<std::size_t>(r_imageWidth)
-                         || inputProperties.rows.value() < static_cast<std::size_t>(r_imageHeight);
         const std::pair<std::size_t,std::size_t> requestedImageSize {r_imageWidth, r_imageHeight};
-        if (resize) {
-            std::cout << "mtx2img: restricting image size ";
-        }
     #endif
+
+    // Preserve the aspect ratio of the input matrix (as much as possible),
+    // by restricting the resolution of the output image corresponding to the
+    // shorter dimension.
+    if (inputProperties.columns.value() < inputProperties.rows.value()) {
+        r_imageWidth = inputProperties.columns.value() * r_imageWidth / inputProperties.rows.value();
+    } else {
+        r_imageHeight = inputProperties.rows.value() * r_imageHeight / inputProperties.columns.value();
+    }
 
     // Restrict output image size
     if (inputProperties.columns.value() < r_imageWidth) {
@@ -630,8 +634,8 @@ std::vector<unsigned char> convert(std::istream& r_stream,
 
     #ifndef NDEBUG
         // Print changes to the output dimension in debug mode
-        if (resize) {
-            std::cout << std::format("from {}x{} to {}x{}\n",
+        if (r_imageWidth != requestedImageSize.first || r_imageHeight != requestedImageSize.second) {
+            std::cout << std::format("mtx2img: restrict output image size from {}x{} to {}x{}\n",
                 requestedImageSize.first,
                 requestedImageSize.second,
                 r_imageWidth,
@@ -645,7 +649,7 @@ std::vector<unsigned char> convert(std::istream& r_stream,
     // Resize image buffer to final size and initialize it to full white
     image.resize(imageSize.first * imageSize.second * CHANNELS, 0xff);
 
-    // Parse input stream and fill output image buffer
+    // Parse input stream and fill the output image buffer
     fill(
         r_stream,                           // <== input stream
         {
