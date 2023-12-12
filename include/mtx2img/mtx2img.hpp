@@ -47,9 +47,17 @@ enum class Structure
 } // namespace format
 
 
+enum class Aggregation
+{
+    Count,      // <== count the number of nonzeros referencing each pixel
+    Sum         // <== sum the values of each entry referencing a pixel
+}; // enum class Aggregation
+
+
 std::vector<unsigned char> convert(std::istream& r_stream,
                                    std::size_t& r_imageWidth,
                                    std::size_t& r_imageHeight,
+                                   const Aggregation aggregation,
                                    const std::string& r_colormapName);
 
 

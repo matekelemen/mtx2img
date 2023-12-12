@@ -4,6 +4,7 @@
 // --- STL Includes ---
 #include <array> // array
 #include <stdexcept>
+#include <type_traits>
 #include <vector> // vector
 #include <limits> // numeric_limits
 #include <fstream> // ifstream
@@ -14,6 +15,8 @@
 #include <format> // format
 #include <cassert> // assert
 #include <regex> // regex, regex_match
+#include <variant> // monostate
+#include <complex> // complex
 
 #ifndef NDEBUG
     #include <iostream> // cout, cerr
@@ -163,23 +166,46 @@ std::vector<std::array<unsigned char, CHANNELS>> makeColormap(const std::string&
 }
 
 
-std::optional<std::pair<std::size_t,std::size_t>> readDataLine(std::istream& r_stream)
+template <class TValue>
+std::optional<std::conditional_t<
+    std::is_same_v<TValue,std::monostate>,
+    std::tuple<std::size_t,std::size_t>,        // <== no values requested, only row and column indices
+    std::tuple<std::size_t,std::size_t,TValue>  // <== values requested
+>>
+readDataLine(std::istream& r_stream)
 {
     constexpr std::streamsize ignoreSize = std::numeric_limits<std::streamsize>::max();
-    std::size_t row, column;
+    using Entry = std::conditional_t<
+        std::is_same_v<TValue,std::monostate>,
+        std::tuple<std::size_t,std::size_t>,
+        std::tuple<std::size_t,std::size_t,TValue>
+    >;
+    Entry output;
 
-    r_stream >> row;
+    // Read row index
+    r_stream >> std::get<0>(output);
     if (r_stream.eof() || r_stream.bad()) {
         r_stream.clear();
         r_stream.ignore(ignoreSize, '\n');
         return {};
     }
 
-    r_stream >> column;
+    // Read column index
+    r_stream >> std::get<1>(output);
     if (r_stream.eof() || r_stream.bad()) {
         r_stream.clear();
         r_stream.ignore(ignoreSize, '\n');
         return {};
+    }
+
+    // Read value if requested
+    if constexpr (!std::is_same_v<TValue,std::monostate>) {
+        r_stream >> std::get<2>(output);
+        if (r_stream.eof() || r_stream.bad()) {
+            r_stream.clear();
+            r_stream.ignore(ignoreSize, '\n');
+            return {};
+        }
     }
 
     r_stream.ignore(ignoreSize, '\n');
@@ -188,19 +214,19 @@ std::optional<std::pair<std::size_t,std::size_t>> readDataLine(std::istream& r_s
         // Check indices in debug mode
         // => matrix market indices begin with 1,
         //    so it's usually safe to subtract 1 from them.
-        if (row == 0ul) {
+        if (std::get<0>(output) == 0ul) {
             std::cerr << "mtx2img: WARNING: unexpected 0-based row index!\n";
         }
-        if (column == 0ul) {
+        if (std::get<1>(output) == 0ul) {
             std::cerr << "mtx2img: WARNING: unexpected 0-based column index!\n";
         }
     #endif
 
     // Convert (row,column) indices to 0-based indices
-    return std::make_pair(
-        std::max(row, 1ul) - 1ul,
-        std::max(column, 1ul) - 1ul
-    );
+    --std::get<0>(output);
+    --std::get<1>(output);
+
+    return output;
 }
 
 
@@ -387,9 +413,9 @@ format::Properties parseHeader(std::istream& r_stream,
 }
 
 
-/// Generate the upper triangle from entries in the lower triangle.
-template <class TTransform>
-void fillSymmetricPart(std::span<unsigned> nnzMap,
+/// @brief Generate the upper triangle from entries in the lower triangle.
+template <class TValue, class TTransform>
+void fillSymmetricPart(std::span<TValue> nnzMap,
                        std::pair<std::size_t,std::size_t> imageSize,
                        TTransform&& r_transformFunctor)
 {
@@ -415,6 +441,41 @@ void fillSymmetricPart(std::span<unsigned> nnzMap,
 }
 
 
+template <class T>
+struct is_complex : std::false_type {};
+
+
+template <class T>
+struct is_complex<std::complex<T>> : std::true_type {};
+
+
+template <class T>
+constexpr bool is_complex_v = is_complex<T>::value;
+
+
+template <class TValue, class TPixel>
+void registerEntry([[maybe_unused]] const TValue value,
+                   TPixel& r_pixel)
+{
+    if constexpr (std::is_same_v<TValue,std::monostate> || std::is_integral_v<TValue>) {
+        // No value is available => assume we're just counting the number of entries
+        static_assert(std::is_integral_v<TPixel>);
+        ++r_pixel;
+    } else if constexpr (std::is_floating_point_v<TValue>) {
+        // Values are real => register their magnitude
+        static_assert(std::is_same_v<TValue,TPixel>);
+        r_pixel += std::abs(value);
+    } else if constexpr (is_complex_v<TValue>) {
+        // Values are complex => register their magnitude
+        static_assert(std::is_same_v<typename TValue::value_type,TPixel>);
+        r_pixel += std::abs(value);
+    } else {
+        static_assert(std::is_same_v<TValue,void>, "Error: unsupported value type");
+    }
+}
+
+
+template <Aggregation TAggregation>
 void fill(std::istream& r_stream,
           std::pair<std::size_t,std::size_t> matrixSize,
           std::size_t nonzeros,
@@ -457,30 +518,36 @@ void fill(std::istream& r_stream,
 
     // A buffer for keeping track of how many entries in the matrix
     // map to a given pixel.
-    std::vector<unsigned> nnzMap(pixelCount, 0u);
+    std::vector<std::conditional_t<
+        TAggregation == Aggregation::Count,
+        unsigned,
+        std::conditional_t<
+            TAggregation == Aggregation::Sum,
+            double,
+            std::monostate // <== dummy invalid type
+        >
+    >> values(pixelCount, 0);
 
     // Track how many entries were read from the input stream.
     // This will be compared against the expected number of nonzeros.
     std::size_t entryCount = 0ul;
 
-    // Most number of matrix entries mapping to a single pixel.
-    decltype(nnzMap)::value_type maxNnzCount = 0u;
-
     // Parse the input file and map entries to pixels in the image.
     while (true) {
-        const auto maybePosition = readDataLine(r_stream);
-        if (maybePosition.has_value()) [[likely]] {
+        const auto maybeEntry = readDataLine<typename decltype(values)::value_type>(r_stream);
+        if (maybeEntry.has_value()) [[likely]] {
             ++entryCount;
-            const std::size_t row = maybePosition->first;
-            const std::size_t column = maybePosition->second;
+            const std::size_t row = std::get<0>(*maybeEntry);
+            const std::size_t column = std::get<1>(*maybeEntry);
+            const auto value = std::get<2>(*maybeEntry);
 
             #ifndef NDEBUG
                 if (matrixSize.first <= row) {
-                    std::cerr << std::format("mtx2img: row index {} is out of bounds {} at entry {}\n",
+                    std::cerr << std::format("mtx2img: row index {} is out of bound {} at entry {}\n",
                                              row, matrixSize.first, entryCount);
                 }
                 if (matrixSize.second <= column) {
-                    std::cerr << std::format("mtx2img: column index {} is out of bounds {} at entry {}\n",
+                    std::cerr << std::format("mtx2img: column index {} is out of bound {} at entry {}\n",
                                              column, matrixSize.second, entryCount);
                 }
             #endif
@@ -488,12 +555,14 @@ void fill(std::istream& r_stream,
             const std::size_t imageRow = row * imageSize.second / matrixSize.first;
             const std::size_t imageColumn = column * imageSize.first / matrixSize.second;
             const std::size_t i_flat = imageRow * imageSize.first + imageColumn;
-            assert(i_flat < nnzMap.size());
-            maxNnzCount = std::max(maxNnzCount, ++nnzMap[i_flat]);
+            assert(i_flat < values.size());
+            registerEntry(value, values[i_flat]);
         } else {
             break;
         }
     } // while (true)
+
+    const auto maxValue = *std::max_element(values.begin(), values.end());
 
     // Check the read number of entries
     if (entryCount != nonzeros) {
@@ -505,12 +574,12 @@ void fill(std::istream& r_stream,
     }
 
     #ifndef NDEBUG
-        std::cout << std::format("mtx2img: highest nonzero density is {}\n", maxNnzCount);
+        std::cout << std::format("mtx2img: highest aggregate value per pixel is {}\n", maxValue);
     #endif
 
     // No need to pass through the image again if no
     // entries were read.
-    if (maxNnzCount == 0) {
+    if (maxValue == 0) {
         return;
     }
 
@@ -521,30 +590,31 @@ void fill(std::istream& r_stream,
     //       but once value-based intensity is enabled, skewness and
     //       negative values will have to be considered.
     if (maybeStructure.has_value()) {
+        std::span<typename decltype(values)::value_type> valueRange(values);
         switch (maybeStructure.value()) {
             case format::Structure::General: break; // <== nothing to do
             case format::Structure::Symmetric:
-                fillSymmetricPart(nnzMap,
+                fillSymmetricPart(valueRange,
                                   imageSize,
-                                  [](unsigned v){return v;});
+                                  [](auto v){return v;});
                 break;
             case format::Structure::SkewSymmetric:
-                fillSymmetricPart(nnzMap,
+                fillSymmetricPart(valueRange,
                                   imageSize,
-                                  [](unsigned v){return v;});
+                                  [](auto v){return -v;});
                 break;
             case format::Structure::Hermitian:
-                fillSymmetricPart(nnzMap,
+                fillSymmetricPart(valueRange,
                                   imageSize,
-                                  [](unsigned v){return v;});
+                                  [](auto v){return v;});
                 break;
-            default: throw std::runtime_error("Missing fill strategy implementation for input matrix structure.");
+            default: throw std::runtime_error("Error: missing fill strategy implementation for input matrix structure.");
         }
     }
 
     // Apply the colormap and fill the image buffer
     for (std::size_t i_pixel=0ul; i_pixel<pixelCount; ++i_pixel) {
-        const std::size_t intensity = std::min<std::size_t>(0xff, 0xff - 0xff * nnzMap[i_pixel] / maxNnzCount);
+        const std::size_t intensity = std::min<std::size_t>(0xff, 0xff - 0xff * values[i_pixel] / maxValue);
         const auto& r_color = colormap[intensity];
         const std::size_t i_imageBegin = CHANNELS * i_pixel;
         for (std::size_t i_component=0; i_component<CHANNELS; ++i_component) {
@@ -557,6 +627,7 @@ void fill(std::istream& r_stream,
 std::vector<unsigned char> convert(std::istream& r_stream,
                                    std::size_t& r_imageWidth,
                                    std::size_t& r_imageHeight,
+                                   const Aggregation aggregation,
                                    const std::string& r_colormapName,
                                    std::span<std::string::value_type> inputBuffer)
 {
@@ -650,18 +721,40 @@ std::vector<unsigned char> convert(std::istream& r_stream,
     image.resize(imageSize.first * imageSize.second * CHANNELS, 0xff);
 
     // Parse input stream and fill the output image buffer
-    fill(
-        r_stream,                           // <== input stream
-        {
-            inputProperties.rows.value(),   // <== number of rows in input matrix
-            inputProperties.columns.value() // <== number of columns in input matrix
-        },
-        inputProperties.nonzeros.value(),   // <== number of nonzero entries in matrix
-        image,                              // <== buffer
-        imageSize,                          // <== buffer dimensions
-        r_colormapName,                     // <== name of the colormap to use
-        inputProperties.structure           // <== input matrix symmetry
-    );
+    switch (aggregation) {
+        case Aggregation::Count: fill<Aggregation::Count>(
+                r_stream,                           // <== input stream
+                {
+                    inputProperties.rows.value(),   // <== number of rows in input matrix
+                    inputProperties.columns.value() // <== number of columns in input matrix
+                },
+                inputProperties.nonzeros.value(),   // <== number of nonzero entries in matrix
+                image,                              // <== buffer
+                imageSize,                          // <== buffer dimensions
+                r_colormapName,                     // <== name of the colormap to use
+                inputProperties.structure           // <== input matrix symmetry
+            );
+            break;
+        case Aggregation::Sum: fill<Aggregation::Sum>(
+                r_stream,                           // <== input stream
+                {
+                    inputProperties.rows.value(),   // <== number of rows in input matrix
+                    inputProperties.columns.value() // <== number of columns in input matrix
+                },
+                inputProperties.nonzeros.value(),   // <== number of nonzero entries in matrix
+                image,                              // <== buffer
+                imageSize,                          // <== buffer dimensions
+                r_colormapName,                     // <== name of the colormap to use
+                inputProperties.structure           // <== input matrix symmetry
+            );
+            break;
+        default:
+            throw std::runtime_error(std::format(
+                "Error: missing implementation for aggregation {}\n",
+                (int)aggregation
+            ));
+    }
+
 
     return image;
 }
@@ -670,6 +763,7 @@ std::vector<unsigned char> convert(std::istream& r_stream,
 std::vector<unsigned char> convert(std::istream& r_stream,
                                    std::size_t& r_imageWidth,
                                    std::size_t& r_imageHeight,
+                                   const Aggregation aggregation,
                                    const std::string& r_colormapName)
 {
     // The matrix market format is limited to 1024 characters per line
@@ -683,6 +777,7 @@ std::vector<unsigned char> convert(std::istream& r_stream,
         r_stream,
         r_imageWidth,
         r_imageHeight,
+        aggregation,
         r_colormapName,
         inputBuffer
     );

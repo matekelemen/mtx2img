@@ -23,6 +23,7 @@
  */
 const std::map<std::string,std::string> defaultArguments {
     {"-r", "1080"},
+    {"-a", "count"},
     {"-c", "binary"}
 };
 
@@ -32,6 +33,7 @@ struct Arguments
     std::filesystem::path inputPath;
     std::filesystem::path outputPath;
     std::size_t resolution;
+    mtx2img::Aggregation aggregation;
     std::string colormap;
 }; // struct Arguments
 
@@ -43,6 +45,9 @@ void printHelp()
         << "Usage: mtx2img <path-to-source> <path-to-output> [OPTION ARGUMENT] ...\n"
         << "Options:\n"
         << "    -r <resolution>  : highest resolution of the output image in pixels (default: " << defaultArguments.at("-r") << ").\n"
+        << "    -a <aggregation> : controls how sparse entries are aggregated to pixels. Options: [count, sum]\n"
+        << "                       \"count\" ignores values and counts the number of entries referencing each pixel.\n"
+        << "                       \"sum\" reads values and sums them up for each pixel.\n"
         << "    -c <colormap>    : colormap to use for per pixel nonzero density. Options: [binary, kindlmann, viridis] (default: "  << defaultArguments.at("-c") << ").\n"
         << "\n"
         << "The input path must point to an existing MatrixMarket file (or pass '-' to read the same format from stdin).\n"
@@ -66,8 +71,8 @@ std::optional<Arguments> parseArguments(int argc, char const* const* argv)
             if (it_argument == argMap.end()) {
                 if ((it_argument = argMap.find(arg)) == argMap.end()) {
                     // The provided key does not exist in the argument map
-                    // Special case: "--help"
-                    if (arg == "--help") {
+                    // Special case: "--help" or "-h"
+                    if (arg == "--help" || arg == "-h") {
                         return {};
                     }
 
@@ -177,6 +182,18 @@ std::optional<Arguments> parseArguments(int argc, char const* const* argv)
             ));
         } // if !writePermission
     } // if arguments.outputPath != "-"
+
+    // Validate aggregation method
+    if (argMap["-a"] == "count") {
+        arguments.aggregation = mtx2img::Aggregation::Count;
+    } else if (argMap["-a"] == "sum") {
+        arguments.aggregation = mtx2img::Aggregation::Sum;
+    } else {
+        throw std::invalid_argument(std::format(
+            "Error: invalid aggregation method: {}\n",
+            argMap["a"]
+        ));
+    }
 
     // Validate colormap
     arguments.colormap = argMap["-c"];
@@ -295,6 +312,7 @@ int main(int argc, char const* const* argv)
     image = mtx2img::convert(*p_inputStream,
                              imageSize.first,
                              imageSize.second,
+                             arguments.aggregation,
                              arguments.colormap);
 
     #ifdef NDEBUG
