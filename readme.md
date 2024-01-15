@@ -1,12 +1,12 @@
 ## Usage
 
-Convert [sparse matrix market](https://math.nist.gov/MatrixMarket/formats.html#MMformat) files to images.
+Convert [matrix market](https://math.nist.gov/MatrixMarket/formats.html#MMformat) files to images.
 
 <p align="center">
 <img src=".github/assets/cube_isoparametric_quadratic_tets.png" width=300/> <img src=".github/assets/rbs480a.png" width=300/>
 </p>
 
-`mtx2img <input-path> <output-path> [-r <output-resolution>] [-c <colormap-name>]`
+`mtx2img <input-path> <output-path> [-r <output-resolution>] [-a <aggregation-method>] [-c <colormap-name>]`
 
 Required arguments:
 - `<input-path>`: path pointing to an existing MatrixMarket file (*.mtx* or *.mm*). It must use the *coordinate* format (i.e.: represent a sparse matrix). Alternatively, `-` can be passed to read the same format from *stdin* instead of a file.
@@ -14,8 +14,11 @@ Required arguments:
 
 Optional arguments:
 - `[-r <output-resolution>]`: highest resolution of the output image in pixels. This setting is overridden if the number of rows or columns in the input matrix is less than the provided width, but the its aspect ratio as always preserved (closest ratio representable by the requested resolution). The default value is 1080.
-- `[-c <colormap-name>]`: name of the colormap to apply on pixels. The options are limited to `binary` (default) or `kindlmann`. If the matrix dimensions are larger than the output image dimensions, multiple nonzeros may end up getting mapped to the same pixel. The program sums up the number of nonzeros that reference each pixel, and normalizes this "*nonzero density*" after reading the matrix. The `-c` option controls how these densities are mapped to RGB colors in the output image.
-   - `binary`: any pixel with at least one nonzero mapping to it is black; the rest are white.
+- `[-a <aggregation-method>]`: controls how matrix entries are aggregated to pixels.
+   - `count`: compute the ratio of nonzero entries referencing the same pixel (default)
+   - `sum`: accumulates the absoltute value of entries for each pixel
+- `[-c <colormap-name>]`: name of the colormap to apply on pixels. If the matrix dimensions are larger than the output image dimensions, multiple matrix entries may end up getting mapped to the same pixel. The program aggregates these entries for each pixel (using the aggregation method set by the `-a` flag), and normalizes the comuted values after reading the matrix. The `-c` option controls how these aggregated values are mapped to RGB colors in the output image.
+   - `binary`: any pixel with at least one nonzero mapping to it is black; the rest are white (default)
    - [`kindlmann`](https://www.kennethmoreland.com/color-advice/#extended-kindlmann) (extended)
    - [`viridis`](https://www.kennethmoreland.com/color-advice/#viridis)
 
