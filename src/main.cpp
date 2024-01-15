@@ -48,7 +48,7 @@ void printHelp()
         << "    -a <aggregation> : controls how sparse entries are aggregated to pixels. Options: [count, sum]\n"
         << "                       \"count\" ignores values and counts the number of entries referencing each pixel.\n"
         << "                       \"sum\" reads values and sums them up for each pixel.\n"
-        << "    -c <colormap>    : colormap to use for per pixel nonzero density. Options: [binary, kindlmann, viridis] (default: "  << defaultArguments.at("-c") << ").\n"
+        << "    -c <colormap>    : colormap to use for aggregated pixel values. Options: [binary, kindlmann, viridis] (default: "  << defaultArguments.at("-c") << ").\n"
         << "\n"
         << "The input path must point to an existing MatrixMarket file (or pass '-' to read the same format from stdin).\n"
         << "The parent directory of the output path must exist, and the output path is assumed to either not exist, or\n"

@@ -22,7 +22,7 @@ enum class Object
 enum class Format
 {
     Coordinate,     // <== supported (sparse representation)
-    Array           // <== unsupported, planned (dense representation)
+    Array           // <== supported (dense representation)
 }; // enum class Format
 
 
