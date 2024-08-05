@@ -48,4 +48,7 @@ jobs:
           build/bin/mtx2img .github/assets/fidap005.mtx out.png -r 10 -c binary
           build/bin/mtx2img .github/assets/fidap005.mtx out.png -r 10 -c kindlmann
           build/bin/mtx2img .github/assets/fidap005.mtx out.png -r 10 -c viridis
+          build/bin/mtx2img .github/assets/fidap005.mtx out.png -r 10 -c glasbey256
+          build/bin/mtx2img .github/assets/fidap005.mtx out.png -r 10 -c glasbey64
+          build/bin/mtx2img .github/assets/fidap005.mtx out.png -r 10 -c glasbey8
           build/bin/mtx2img --help

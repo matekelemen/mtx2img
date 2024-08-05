@@ -48,7 +48,8 @@ void printHelp()
         << "    -a <aggregation> : controls how sparse entries are aggregated to pixels. Options: [count, sum]\n"
         << "                       \"count\" ignores values and counts the number of entries referencing each pixel.\n"
         << "                       \"sum\" reads values and sums them up for each pixel.\n"
-        << "    -c <colormap>    : colormap to use for aggregated pixel values. Options: [binary, kindlmann, viridis] (default: "  << defaultArguments.at("-c") << ").\n"
+        << "    -c <colormap>    : colormap to use for aggregated pixel values.\n"
+        << "                       Options: [binary, kindlmann, viridis, glasbey256, glasbey64, glasbey8] (default: "  << defaultArguments.at("-c") << ").\n"
         << "\n"
         << "The input path must point to an existing MatrixMarket file (or pass '-' to read the same format from stdin).\n"
         << "The parent directory of the output path must exist, and the output path is assumed to either not exist, or\n"
@@ -64,8 +65,8 @@ std::optional<Arguments> parseArguments(int argc, char const* const* argv)
 
     // Parse optional argMap
     auto it_argument = argMap.end();
-    for (int i_arg=3; i_arg<argc; ++i_arg) {
-        std::string arg = argv[i_arg];
+    for (int iArg=3; iArg<argc; ++iArg) {
+        std::string arg = argv[iArg];
         if (!arg.empty() && arg.front() == '-') {
             // Parse a key
             if (it_argument == argMap.end()) {
@@ -105,7 +106,7 @@ std::optional<Arguments> parseArguments(int argc, char const* const* argv)
                 ));
             } // else (it_argument != argMap.end())
         } // else (!arg.empty() && arg.front() == '-')
-    } // while (i_arg < argc)
+    } // while (iArg < argc)
 
     // If the arg iterator was not reset, a value
     // was not provided for the last key.
@@ -198,7 +199,7 @@ std::optional<Arguments> parseArguments(int argc, char const* const* argv)
     // Validate colormap
     arguments.colormap = argMap["-c"];
     {
-        if (!std::set<std::string>({"binary", "kindlmann", "viridis"}).contains(arguments.colormap)) {
+        if (!std::set<std::string>({"binary", "kindlmann", "viridis", "glasbey256", "glasbey64", "glasbey8"}).contains(arguments.colormap)) {
             throw std::invalid_argument(std::format(
                 "Error: invalid colormap: {}\n",
                 arguments.colormap
@@ -207,11 +208,11 @@ std::optional<Arguments> parseArguments(int argc, char const* const* argv)
     }
 
     // Convert and validate resolution
-    char* it_end = nullptr;
+    char* itEnd = nullptr;
     const std::string& r_resolutionString = argMap["-r"];
-    const long long resolution = std::strtoll(r_resolutionString.data(), &it_end, 0);
-    if (it_end < r_resolutionString.data() ||
-        static_cast<std::size_t>(std::distance(r_resolutionString.data(), static_cast<const char*>(it_end))) != r_resolutionString.size()) {
+    const long long resolution = std::strtoll(r_resolutionString.data(), &itEnd, 0);
+    if (itEnd < r_resolutionString.data() ||
+        static_cast<std::size_t>(std::distance(r_resolutionString.data(), static_cast<const char*>(itEnd))) != r_resolutionString.size()) {
         throw std::invalid_argument(std::format(
             "Error: invalid output image resolution: {}\n",
             r_resolutionString
@@ -230,13 +231,13 @@ std::optional<Arguments> parseArguments(int argc, char const* const* argv)
 
 
 // Write function to pass to stbi_write_png_to_func
-void writeImageData(void* p_context,    // <== pointer to an std::ostream
-                    void* p_data,       // <== pointer to the beginning of an unsigned char array
+void writeImageData(void* pContext,     // <== pointer to an std::ostream
+                    void* pData,        // <== pointer to the beginning of an unsigned char array
                     int extent)         // <== number of bytes to write
 {
-    std::ostream& r_stream = *reinterpret_cast<std::ostream*>(p_context);
-    r_stream.write(
-        reinterpret_cast<const char*>(p_data),
+    std::ostream& rStream = *reinterpret_cast<std::ostream*>(pContext);
+    rStream.write(
+        reinterpret_cast<const char*>(pData),
         static_cast<std::streamsize>(extent)
     );
 }
@@ -254,20 +255,20 @@ int main(int argc, char const* const* argv)
             printHelp();
             return 0;
         }
-    } catch (std::invalid_argument& r_exception) {
-        std::cerr << r_exception.what();
+    } catch (std::invalid_argument& rException) {
+        std::cerr << rException.what();
         printHelp();
         return 1;
     }
 
     // Set up input stream
-    std::istream* p_inputStream = nullptr;
+    std::istream* pInputStream = nullptr;
     std::optional<std::ifstream> maybeInputFile;
 
     if (arguments.inputPath == "-") {
         // Special case: read from the pipe.
         if (!std::cin.eof()) {
-            p_inputStream = &std::cin;
+            pInputStream = &std::cin;
         } else {
             std::cerr << "Error: requested to read input from the pipe, but it is closed.\n";
             return 2;
@@ -275,7 +276,7 @@ int main(int argc, char const* const* argv)
     } else {
         // Otherwise read from a file.
         maybeInputFile.emplace(arguments.inputPath);
-        p_inputStream = &maybeInputFile.value();
+        pInputStream = &maybeInputFile.value();
         if (!maybeInputFile.value().good()) {
             std::cerr << "Error: failed to open input file: " << arguments.inputPath << '\n';
             return 3;
@@ -284,16 +285,16 @@ int main(int argc, char const* const* argv)
 
     // Set up output stream
     const std::string outputPath = arguments.outputPath.string();
-    std::ostream* p_outputStream = nullptr;
+    std::ostream* pOutputStream = nullptr;
     std::optional<std::ofstream> maybeOutputFile;
 
     if (arguments.outputPath == "-") {
         // Special case: write to stdout.
-        p_outputStream = &std::cout;
+        pOutputStream = &std::cout;
     } else {
         // Otherwise write to a file.
         maybeOutputFile.emplace(arguments.outputPath);
-        p_outputStream = &maybeOutputFile.value();
+        pOutputStream = &maybeOutputFile.value();
     }
 
     std::vector<unsigned char> image;
@@ -309,31 +310,31 @@ int main(int argc, char const* const* argv)
     // Parse the input file and fill an output image buffer
     // Note: the image gets resized if the matrix dimensions
     //       are smaller than the requested image dimensions.
-    image = mtx2img::convert(*p_inputStream,
+    image = mtx2img::convert(*pInputStream,
                              imageSize.first,
                              imageSize.second,
                              arguments.aggregation,
                              arguments.colormap);
 
     #ifdef NDEBUG
-    } catch (mtx2img::ParsingException& r_exception) {
-        std::cerr << r_exception.what();
+    } catch (mtx2img::ParsingException& rException) {
+        std::cerr << rException.what();
         return 4;
-    } catch (mtx2img::InvalidFormat& r_exception) {
-        std::cerr << r_exception.what();
+    } catch (mtx2img::InvalidFormat& rException) {
+        std::cerr << rException.what();
         return 5;
-    } catch (mtx2img::UnsupportedFormat& r_exception) {
-        std::cerr << r_exception.what();
+    } catch (mtx2img::UnsupportedFormat& rException) {
+        std::cerr << rException.what();
         return 6;
-    } catch (std::invalid_argument& r_exception) {
-        std::cerr << r_exception.what();
+    } catch (std::invalid_argument& rException) {
+        std::cerr << rException.what();
         return 7;
     }
     #endif
 
     if (stbi_write_png_to_func(
         writeImageData,                                                         // <== write functor
-        reinterpret_cast<void*>(p_outputStream),                                // <== write context (output stream)
+        reinterpret_cast<void*>(pOutputStream),                                 // <== write context (output stream)
         imageSize.first,                                                        // <== image width
         imageSize.second,                                                       // <== image height
         image.size() / imageSize.first / imageSize.second,                      // <== number of color channels

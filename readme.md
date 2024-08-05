@@ -21,6 +21,9 @@ Optional arguments:
    - `binary`: any pixel with at least one nonzero mapping to it is black; the rest are white (default)
    - [`kindlmann`](https://www.kennethmoreland.com/color-advice/#extended-kindlmann) (extended)
    - [`viridis`](https://www.kennethmoreland.com/color-advice/#viridis)
+   - [`glasbey256`](https://strathprints.strath.ac.uk/30312/1/colorpaper_2006.pdf)
+   - [`glasbey64`](https://strathprints.strath.ac.uk/30312/1/colorpaper_2006.pdf)
+   - [`glasbey8`](https://strathprints.strath.ac.uk/30312/1/colorpaper_2006.pdf)
 
 ## Installation
 
