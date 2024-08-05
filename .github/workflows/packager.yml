@@ -16,9 +16,9 @@ on:
 
 jobs:
   packager:
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
-    runs-on: ubuntu-latest
     steps:
       - name: Install toolchain
         run: |

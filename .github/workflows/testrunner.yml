@@ -31,16 +31,12 @@ concurrency:
 
 jobs:
   testrunner:
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
         sanitizer: [address, thread, undefined]
-    runs-on: ubuntu-latest
     steps:
-      - name: Install toolchain
-        run: |
-          sudo apt update
-          sudo apt install gcc-13 g++-13
       - name: Clone repository
         uses: actions/checkout@v4
         with:
