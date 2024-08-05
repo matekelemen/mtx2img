@@ -20,8 +20,6 @@ jobs:
       fail-fast: false
     runs-on: ubuntu-latest
     steps:
-      - name: Install toolchain
-        run: sudo apt install gcc-13 g++-13
       - name: Clone repository
         uses: actions/checkout@v4
         with:
@@ -30,7 +28,6 @@ jobs:
         run: |
           ./build.sh                                  \
             -t Release                                \
-            -o "-DCMAKE_CXX_COMPILER=/usr/bin/g++-13" \
             -p
       - name: Upload binary artifact
         uses: actions/upload-artifact@v3
