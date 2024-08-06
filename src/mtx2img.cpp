@@ -617,7 +617,7 @@ void fillSymmetricPart(std::span<TValue> nnzMap,
 }
 
 
-template <class TValue, class TPixel>
+template <Aggregation TAggregation, class TValue, class TPixel>
 void registerEntry([[maybe_unused]] const TValue value,
                    TPixel& r_pixel)
 {
@@ -628,11 +628,25 @@ void registerEntry([[maybe_unused]] const TValue value,
     } else if constexpr (std::is_floating_point_v<TValue>) {
         // Values are real => register their magnitude
         static_assert(std::is_same_v<TValue,TPixel>);
-        r_pixel += std::abs(value);
+        if constexpr (TAggregation == Aggregation::Sum) {
+            r_pixel += std::abs(value);
+        } else if constexpr (TAggregation == Aggregation::Max) {
+            r_pixel = std::max(r_pixel, std::abs(value));
+        } else {
+            // Error on unhandled aggregation
+            static_assert(TAggregation == Aggregation::Sum);
+        }
     } else if constexpr (is_complex_v<TValue>) {
         // Values are complex => register their magnitude
         static_assert(std::is_same_v<typename TValue::value_type,TPixel>);
-        r_pixel += std::abs(value);
+        if constexpr (TAggregation == Aggregation::Sum) {
+            r_pixel += std::abs(value);
+        } else if constexpr (TAggregation == Aggregation::Max) {
+            r_pixel = std::max(r_pixel, std::abs(value));
+        } else {
+            // Error on unhandled aggregation
+            static_assert(TAggregation == Aggregation::Sum);
+        }
     } else {
         static_assert(std::is_same_v<TValue,void>, "Error: unsupported value type");
     }
@@ -680,13 +694,12 @@ void fill(Parser& r_parser,
     const std::size_t pixelCount = imageSize.first * imageSize.second;
     assert(image.size() == pixelCount * CHANNELS);
 
-    // A buffer for keeping track of how many entries in the matrix
-    // map to a given pixel.
+    // A buffer for mapping regions in the matrix to each pixel.
     std::vector<std::conditional_t<
         TAggregation == Aggregation::Count,
         unsigned,
         std::conditional_t<
-            TAggregation == Aggregation::Sum,
+            TAggregation == Aggregation::Sum || TAggregation == Aggregation::Max,
             double,
             std::monostate // <== dummy invalid type
         >
@@ -720,7 +733,7 @@ void fill(Parser& r_parser,
             const std::size_t imageColumn = column * imageSize.first / properties.columns.value();
             const std::size_t i_flat = imageRow * imageSize.first + imageColumn;
             assert(i_flat < values.size());
-            registerEntry(value, values[i_flat]);
+            registerEntry<TAggregation>(value, values[i_flat]);
         } else {
             break;
         }
@@ -896,6 +909,14 @@ std::vector<unsigned char> convert(std::istream& r_stream,
             );
             break;
         case Aggregation::Sum: fill<Aggregation::Sum>(
+                parser,                   // <== mtx/mm parser
+                image,                    // <== buffer
+                imageSize,                // <== buffer dimensions
+                r_colormapName,           // <== name of the colormap to use
+                inputProperties.structure // <== input matrix symmetry
+            );
+            break;
+        case Aggregation::Max: fill<Aggregation::Max>(
                 parser,                   // <== mtx/mm parser
                 image,                    // <== buffer
                 imageSize,                // <== buffer dimensions

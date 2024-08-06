@@ -50,7 +50,8 @@ enum class Structure
 enum class Aggregation
 {
     Count,      // <== count the number of nonzeros referencing each pixel
-    Sum         // <== sum the values of each entry referencing a pixel
+    Sum,        // <== sum the values of each entry referencing a pixel
+    Max         // <== largest absolute value of entries referencing the same pixel
 }; // enum class Aggregation
 
 

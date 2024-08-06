@@ -45,9 +45,10 @@ void printHelp()
         << "Usage: mtx2img <path-to-source> <path-to-output> [OPTION ARGUMENT] ...\n"
         << "Options:\n"
         << "    -r <resolution>  : highest resolution of the output image in pixels (default: " << defaultArguments.at("-r") << ").\n"
-        << "    -a <aggregation> : controls how sparse entries are aggregated to pixels. Options: [count, sum]\n"
+        << "    -a <aggregation> : controls how sparse entries are aggregated to pixels. Options: [count, sum, max]\n"
         << "                       \"count\" ignores values and counts the number of entries referencing each pixel.\n"
         << "                       \"sum\" reads values and sums them up for each pixel.\n"
+        << "                       \"max\" reads values and keeps the one with the largest absolute value for each pixel\n"
         << "    -c <colormap>    : colormap to use for aggregated pixel values.\n"
         << "                       Options: [binary, kindlmann, viridis, glasbey256, glasbey64, glasbey8] (default: "  << defaultArguments.at("-c") << ").\n"
         << "\n"
@@ -185,15 +186,20 @@ std::optional<Arguments> parseArguments(int argc, char const* const* argv)
     } // if arguments.outputPath != "-"
 
     // Validate aggregation method
-    if (argMap["-a"] == "count") {
-        arguments.aggregation = mtx2img::Aggregation::Count;
-    } else if (argMap["-a"] == "sum") {
-        arguments.aggregation = mtx2img::Aggregation::Sum;
-    } else {
-        throw std::invalid_argument(std::format(
-            "Error: invalid aggregation method: {}\n",
-            argMap["a"]
-        ));
+    {
+        const auto& r_aggregation = argMap["-a"];
+        if (r_aggregation == "count") {
+            arguments.aggregation = mtx2img::Aggregation::Count;
+        } else if (r_aggregation == "sum") {
+            arguments.aggregation = mtx2img::Aggregation::Sum;
+        } else if (r_aggregation == "max") {
+            arguments.aggregation = mtx2img::Aggregation::Max;
+        } else {
+            throw std::invalid_argument(std::format(
+                "Error: invalid aggregation method: {}\n",
+                argMap["a"]
+            ));
+        }
     }
 
     // Validate colormap

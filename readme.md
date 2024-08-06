@@ -16,7 +16,8 @@ Optional arguments:
 - `[-r <output-resolution>]`: highest resolution of the output image in pixels. This setting is overridden if the number of rows or columns in the input matrix is less than the provided width, but the its aspect ratio as always preserved (closest ratio representable by the requested resolution). The default value is 1080.
 - `[-a <aggregation-method>]`: controls how matrix entries are aggregated to pixels.
    - `count`: compute the ratio of nonzero entries referencing the same pixel (default)
-   - `sum`: accumulates the absoltute value of entries for each pixel
+   - `sum`: accumulates the absolute value of all entries referencing the same pixel
+   - `max`: keeps largest absolute value of entries referencing the same pixel
 - `[-c <colormap-name>]`: name of the colormap to apply on pixels. If the matrix dimensions are larger than the output image dimensions, multiple matrix entries may end up getting mapped to the same pixel. The program aggregates these entries for each pixel (using the aggregation method set by the `-a` flag), and normalizes the comuted values after reading the matrix. The `-c` option controls how these aggregated values are mapped to RGB colors in the output image.
    - `binary`: any pixel with at least one nonzero mapping to it is black; the rest are white (default)
    - [`kindlmann`](https://www.kennethmoreland.com/color-advice/#extended-kindlmann) (extended)

@@ -49,15 +49,35 @@ jobs:
             -o "-DCMAKE_CXX_FLAGS=-fsanitize=${{ matrix.sanitizer }}"
       - name: Run tests
         run: |
-          build/bin/mtx2img .github/assets/fidap005.mtx out.png
-          cat .github/assets/fidap005.mtx | build/bin/mtx2img - out.png
-          build/bin/mtx2img .github/assets/fidap005.mtx - > out.png
-          cat .github/assets/fidap005.mtx | build/bin/mtx2img - - > out.png
-          build/bin/mtx2img .github/assets/fidap005.mtx out.png -r 10
-          build/bin/mtx2img .github/assets/fidap005.mtx out.png -r 10 -c binary
-          build/bin/mtx2img .github/assets/fidap005.mtx out.png -r 10 -c kindlmann
-          build/bin/mtx2img .github/assets/fidap005.mtx out.png -r 10 -c viridis
-          build/bin/mtx2img .github/assets/fidap005.mtx out.png -r 10 -c glasbey256
-          build/bin/mtx2img .github/assets/fidap005.mtx out.png -r 10 -c glasbey64
-          build/bin/mtx2img .github/assets/fidap005.mtx out.png -r 10 -c glasbey8
-          build/bin/mtx2img --help
+          if ! build/bin/mtx2img --help; then
+            exit 1
+          fi
+
+          if ! build/bin/mtx2img .github/assets/fidap005.mtx out.png; then
+            exit 1
+          fi
+
+          if ! cat .github/assets/fidap005.mtx | build/bin/mtx2img - out.png; then
+            exit 1
+          fi
+
+          if ! build/bin/mtx2img .github/assets/fidap005.mtx - > out.png; then
+            exit 1
+          fi
+
+          if ! cat .github/assets/fidap005.mtx | build/bin/mtx2img - - > out.png; then
+            exit 1
+          fi
+
+          if ! build/bin/mtx2img .github/assets/fidap005.mtx out.png -r 10; then
+            exit 1
+          fi
+
+          for colormap in binary kindlmann viridis glasbery256 glasbery64 glasbery8; do
+            for aggregation in count sum max; do
+              echo "build/bin/mtx2img .github/assets/fidap005.mtx out.png -r 10 -a $aggregation -c $colormap"
+              if ! build/bin/mtx2img .github/assets/fidap005.mtx out.png -r 10 -a $aggregation -c $colormap; then
+                exit 1
+              fi
+            done
+          done
