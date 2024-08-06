@@ -73,7 +73,7 @@ jobs:
             exit 1
           fi
 
-          for colormap in binary kindlmann viridis glasbery256 glasbery64 glasbery8; do
+          for colormap in binary kindlmann viridis glasbey256 glasbey64 glasbey8; do
             for aggregation in count sum max; do
               echo "build/bin/mtx2img .github/assets/fidap005.mtx out.png -r 10 -a $aggregation -c $colormap"
               if ! build/bin/mtx2img .github/assets/fidap005.mtx out.png -r 10 -a $aggregation -c $colormap; then
