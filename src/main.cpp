@@ -299,7 +299,7 @@ int main(int argc, char const* const* argv)
         pOutputStream = &std::cout;
     } else {
         // Otherwise write to a file.
-        maybeOutputFile.emplace(arguments.outputPath);
+        maybeOutputFile.emplace(arguments.outputPath, std::ios::binary);
         pOutputStream = &maybeOutputFile.value();
     }
 
