@@ -127,8 +127,8 @@ std::optional<Arguments> parseArguments(int argc, char const* const* argv)
         throw std::invalid_argument("Error: missing argument for output file.\n");
     }
     using PathString = std::filesystem::path::string_type;
-    arguments.inputPath = PathString(argv[1]);
-    arguments.outputPath = PathString(argv[2]);
+    arguments.inputPath = PathString(argv[1], argv[1] + std::strlen(argv[1]));
+    arguments.outputPath = PathString(argv[2], argv[2] + std::strlen(argv[2]));
 
     if (arguments.inputPath == "--help" || arguments.outputPath == "--help") {
         return {};
