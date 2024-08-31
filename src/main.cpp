@@ -15,6 +15,7 @@
 #include <format> // format
 #include <optional> // optional
 #include <set> // set
+#include <cstring> // strlen
 
 
 /** Default arguments:
