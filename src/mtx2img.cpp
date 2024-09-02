@@ -59,8 +59,8 @@ struct Properties
 constexpr std::size_t CHANNELS = 3ul;
 
 
-std::vector<std::array<unsigned char, CHANNELS>> makeColormap(const std::string& r_colormapName) {
-    if (r_colormapName == "binary") {
+std::vector<std::array<unsigned char, CHANNELS>> makeColormap(const std::string& rColormapName) {
+    if (rColormapName == "binary") {
         return {
             {  0,  0,  0},{  0,  0,  0},{  0,  0,  0},{  0,  0,  0},{  0,  0,  0},{  0,  0,  0},{  0,  0,  0},{  0,  0,  0},
             {  0,  0,  0},{  0,  0,  0},{  0,  0,  0},{  0,  0,  0},{  0,  0,  0},{  0,  0,  0},{  0,  0,  0},{  0,  0,  0},
@@ -95,7 +95,7 @@ std::vector<std::array<unsigned char, CHANNELS>> makeColormap(const std::string&
             {  0,  0,  0},{  0,  0,  0},{  0,  0,  0},{  0,  0,  0},{  0,  0,  0},{  0,  0,  0},{  0,  0,  0},{  0,  0,  0},
             {  0,  0,  0},{  0,  0,  0},{  0,  0,  0},{  0,  0,  0},{  0,  0,  0},{  0,  0,  0},{  0,  0,  0},{255,255,255}
         };
-    } else if (r_colormapName == "kindlmann") {
+    } else if (rColormapName == "kindlmann") {
         // Extended Kindlmann colormap for 256 values
         // Source: https://www.kennethmoreland.com/color-advice/#extended-kindlmann
         return {
@@ -132,7 +132,7 @@ std::vector<std::array<unsigned char, CHANNELS>> makeColormap(const std::string&
             {234,237,254},{234,239,254},{235,240,254},{235,242,254},{236,243,254},{237,245,254},{237,246,254},{238,247,254},
             {239,249,254},{240,250,254},{242,251,254},{243,252,254},{245,253,255},{248,254,255},{251,255,255},{255,255,255}
         };
-    } else if (r_colormapName == "viridis") {
+    } else if (rColormapName == "viridis") {
         // Viridis colormap for 256 values
         // Source: https://www.kennethmoreland.com/color-advice/#viridis
         return {
@@ -169,7 +169,7 @@ std::vector<std::array<unsigned char, CHANNELS>> makeColormap(const std::string&
             {216,226, 25},{218,227, 25},{221,227, 24},{223,227, 24},{226,228, 24},{229,228, 25},{231,228, 25},{234,229, 26},
             {236,229, 27},{239,229, 28},{241,229, 29},{244,230, 30},{246,230, 32},{248,230, 33},{251,231, 35},{253,231, 37}
         };
-    } else if (r_colormapName == "glasbey256") {
+    } else if (rColormapName == "glasbey256") {
         // Categorical color map for 256 values.
         // doi:10.1002/col.20327
         return {
@@ -206,7 +206,7 @@ std::vector<std::array<unsigned char, CHANNELS>> makeColormap(const std::string&
             {130,36 ,105},{186,134,57 },{138,178,227},{109,178,130},{150,65 ,53 },{109,65 ,73 },{138,117,61 },{178,113,117},
             {146,28 ,73 },{223,109,49 },{0  ,227,223},{146,4  ,202},{49 ,40 ,89 },{0  ,125,210},{162,109,255},{255,255,255}
         };
-    } else if (r_colormapName == "glasbey64") {
+    } else if (rColormapName == "glasbey64") {
         // Categorical color map for 64 values.
         // doi:10.1002/col.20327
         return {
@@ -219,7 +219,7 @@ std::vector<std::array<unsigned char, CHANNELS>> makeColormap(const std::string&
             {0  ,194,138},{186,231,194},{134,142,166},{202,113,89 },{130,154,0  },{45 ,0  ,255},{210,4  ,247},{255,215,190},
             {146,206,247},{186,93 ,125},{255,65 ,194},{190,134,255},{146,142,101},{166,4  ,170},{134,227,117},{255,255,255}
         };
-    } else if (r_colormapName == "glasbey8") {
+    } else if (rColormapName == "glasbey8") {
         // Categorical color map for 8 values.
         // doi:10.1002/col.20327
         return {
@@ -228,7 +228,7 @@ std::vector<std::array<unsigned char, CHANNELS>> makeColormap(const std::string&
     } else {
         throw std::invalid_argument(std::format(
             "Error: invalid colormap: {}\n",
-            r_colormapName
+            rColormapName
         ));
     }
 }
@@ -237,8 +237,8 @@ std::vector<std::array<unsigned char, CHANNELS>> makeColormap(const std::string&
 class Parser
 {
 public:
-    Parser(std::istream& r_stream)
-        : _p_stream(&r_stream),
+    Parser(std::istream& rStream)
+        : _pStream(&rStream),
           _inputBuffer(0x400, '\0'),
           _properties()
     {
@@ -277,22 +277,22 @@ private:
     {
         std::regex formatPattern(R"(^%%MatrixMarket (\w+) (\w+) (.*)?)");
         std::regex qualifierPattern(R"(\w+)");
-        std::size_t i_line = 0ul;
-        std::istream& r_stream = *_p_stream;
+        std::size_t iLine = 0ul;
+        std::istream& rStream = *_pStream;
 
         #ifndef NDEBUG
             std::cout << "mtx2img: --- HEADER BEGIN ---\n";
         #endif
 
-        while (r_stream.peek() == '%' && !r_stream.bad() && !r_stream.fail()) /*comment line begins with a '%'*/ {
+        while (rStream.peek() == '%' && !rStream.bad() && !rStream.fail()) /*comment line begins with a '%'*/ {
             // Read the input stream until the buffer is filled
             // or a newline character is encountered.
-            r_stream.getline(_inputBuffer.data(), _inputBuffer.size());
+            rStream.getline(_inputBuffer.data(), _inputBuffer.size());
 
             // If the fail bit is set, the buffer got filled before
             // a newline character was found in the stream. This means
             // that the input file is invalid.
-            if (r_stream.fail()) {
+            if (rStream.fail()) {
                 throw ParsingException(std::format(
                     "Error: header line exceeds the maximum length allowed by the specification ({})\n{}...\n",
                     _inputBuffer.size(),
@@ -308,7 +308,7 @@ private:
             // The first line must contain format properties.
             std::match_results<const std::string::value_type*> match;
             if (std::regex_match(_inputBuffer.data(), match, formatPattern)) {
-                if (i_line == 0ul) {
+                if (iLine == 0ul) {
                     assert(2 <= match.size());
 
                     // Parse object type (matrix, vector, etc.)
@@ -340,12 +340,12 @@ private:
                     // Loop over optional qualifiers (value type, symmetry)
                     if (3 < match.size()) {
                         const std::string qualifiers = match.str(3);
-                        for (auto it_qualifier = std::sregex_iterator(qualifiers.begin(),
-                                                                    qualifiers.end(),
-                                                                    qualifierPattern);
-                                it_qualifier != std::sregex_iterator();
-                                ++it_qualifier) {
-                            const std::string qualifier = it_qualifier->str();
+                        for (auto itQualifier = std::sregex_iterator(qualifiers.begin(),
+                                                                      qualifiers.end(),
+                                                                      qualifierPattern);
+                                itQualifier != std::sregex_iterator();
+                                ++itQualifier) {
+                            const std::string qualifier = itQualifier->str();
                             if (qualifier == "real") {
                                 _properties.data = format::Data::Real;
                             } else if (qualifier == "integer") {
@@ -370,7 +370,7 @@ private:
                             }
                         }
                     }
-                } // if i_line == 0
+                } // if iLine == 0
 
                 #ifndef NDEBUG
                 else {
@@ -378,21 +378,21 @@ private:
                     std::cerr << "mtx2img: WARNING: input redefines matrix properties (redefined properties are ignored):\n";
                 }
                 #endif
-            } else if (i_line == 0ul) {
+            } else if (iLine == 0ul) {
                 throw ParsingException(std::format(
                     "Error: the first line of the input must begin with '%%MatrixMarket' and define the matrix format, but it is\n{}\n",
                     _inputBuffer.data()
                 ));
             }
 
-            ++i_line;
+            ++iLine;
         }
 
         long long rows = 0ul, columns = 0ul, nonzeros = 0ul;
 
         // Parse number of rows
-        r_stream >> rows;
-        if (r_stream.fail()) {
+        rStream >> rows;
+        if (rStream.fail()) {
             throw ParsingException("Error: failed to parse the number of rows in the input matrix\n");
         } else if (rows < 0ll) {
             throw ParsingException(std::format(
@@ -404,8 +404,8 @@ private:
         }
 
         // Parse number of columns
-        r_stream >> columns;
-        if (r_stream.fail()) {
+        rStream >> columns;
+        if (rStream.fail()) {
             throw ParsingException("Error: failed to parse the number of columns in the input matrix\n");
         } else if (columns < 0ll) {
             throw ParsingException(std::format(
@@ -419,8 +419,8 @@ private:
         // Parse number of nonzeros
         switch (_properties.format.value()) {
             case format::Format::Coordinate: {
-                r_stream >> nonzeros;
-                if (r_stream.fail()) {
+                rStream >> nonzeros;
+                if (rStream.fail()) {
                     throw ParsingException("Error: failed to parse the number of nonzeros in the input matrix\n");
                 } else if (nonzeros < 0ll) {
                     throw ParsingException(std::format(
@@ -453,7 +453,7 @@ private:
         }
 
         // Ignore the rest of the line
-        r_stream.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+        rStream.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
         #ifndef NDEBUG
             std::cout << "mtx2img: --- HEADER END ---\n";
@@ -481,35 +481,35 @@ private:
             std::tuple<std::size_t,std::size_t,TValue>
         >;
         Entry output;
-        std::istream& r_stream = *_p_stream;
+        std::istream& rStream = *_pStream;
 
         // Read row index
-        r_stream >> std::get<0>(output);
-        if (r_stream.eof() || r_stream.bad()) {
-            r_stream.clear();
-            r_stream.ignore(ignoreSize, '\n');
+        rStream >> std::get<0>(output);
+        if (rStream.eof() || rStream.bad()) {
+            rStream.clear();
+            rStream.ignore(ignoreSize, '\n');
             return {};
         }
 
         // Read column index
-        r_stream >> std::get<1>(output);
-        if (r_stream.eof() || r_stream.bad()) {
-            r_stream.clear();
-            r_stream.ignore(ignoreSize, '\n');
+        rStream >> std::get<1>(output);
+        if (rStream.eof() || rStream.bad()) {
+            rStream.clear();
+            rStream.ignore(ignoreSize, '\n');
             return {};
         }
 
         // Read value if requested
         if constexpr (!std::is_same_v<TValue,std::monostate>) {
-            r_stream >> std::get<2>(output);
-            if (r_stream.eof() || r_stream.bad()) {
-                r_stream.clear();
-                r_stream.ignore(ignoreSize, '\n');
+            rStream >> std::get<2>(output);
+            if (rStream.eof() || rStream.bad()) {
+                rStream.clear();
+                rStream.ignore(ignoreSize, '\n');
                 return {};
             }
         }
 
-        r_stream.ignore(ignoreSize, '\n');
+        rStream.ignore(ignoreSize, '\n');
 
         #ifndef NDEBUG
             // Check indices in debug mode
@@ -545,7 +545,7 @@ private:
             std::tuple<std::size_t,std::size_t,TValue>
         >;
         Entry output;
-        std::istream& r_stream = *_p_stream;
+        std::istream& rStream = *_pStream;
 
         // Advance row or column index
         if (_lastPosition.has_value()) {
@@ -561,10 +561,10 @@ private:
 
         // Read value if requested
         if constexpr (!std::is_same_v<TValue,std::monostate>) {
-            r_stream >> std::get<2>(output);
-            if (r_stream.eof() || r_stream.bad()) {
-                r_stream.clear();
-                r_stream.ignore(ignoreSize, '\n');
+            rStream >> std::get<2>(output);
+            if (rStream.eof() || rStream.bad()) {
+                rStream.clear();
+                rStream.ignore(ignoreSize, '\n');
                 return {};
             }
         }
@@ -573,7 +573,7 @@ private:
     }
 
 private:
-    std::istream* _p_stream;
+    std::istream* _pStream;
 
     /// The dense format does not store the row and column indices
     /// in the data lines, so they must be stored separately in the
@@ -593,7 +593,7 @@ private:
 template <class TValue, class TTransform>
 void fillSymmetricPart(std::span<TValue> nnzMap,
                        std::pair<std::size_t,std::size_t> imageSize,
-                       TTransform&& r_transformFunctor)
+                       TTransform&& rTransformFunctor)
 {
     // Check whether the provided sizes are consistent with the image buffer.
     assert(nnzMap.size() == imageSize.first * imageSize.second);
@@ -602,36 +602,36 @@ void fillSymmetricPart(std::span<TValue> nnzMap,
     // of the input matrix.
     assert(imageSize.first == imageSize.second);
 
-    for (std::size_t i_row=0; i_row<imageSize.second; ++i_row) {
-        for (std::size_t i_column=0; i_column<i_row; ++i_column) {
-            const std::size_t i_flat = i_row * imageSize.first + i_column;
-            const std::size_t i_symmetric = i_column * imageSize.first + i_row;
+    for (std::size_t iRow=0; iRow<imageSize.second; ++iRow) {
+        for (std::size_t iColumn=0; iColumn<iRow; ++iColumn) {
+            const std::size_t iFlat = iRow * imageSize.first + iColumn;
+            const std::size_t iSymmetric = iColumn * imageSize.first + iRow;
 
             // Debug check: the upper triangle should be empty if the
             // symmetric qualifier was set.
-            assert(!nnzMap[i_symmetric]);
+            assert(!nnzMap[iSymmetric]);
 
-            nnzMap[i_symmetric] = r_transformFunctor(nnzMap[i_flat]);
-        } // for i_column
-    } // for i_row
+            nnzMap[iSymmetric] = rTransformFunctor(nnzMap[iFlat]);
+        } // for iColumn
+    } // for iRow
 }
 
 
 template <Aggregation TAggregation, class TValue, class TPixel>
 void registerEntry([[maybe_unused]] const TValue value,
-                   TPixel& r_pixel)
+                   TPixel& rPixel)
 {
     if constexpr (std::is_same_v<TValue,std::monostate> || std::is_integral_v<TValue>) {
         // No value is available => assume we're just counting the number of entries
         static_assert(std::is_integral_v<TPixel>);
-        ++r_pixel;
+        ++rPixel;
     } else if constexpr (std::is_floating_point_v<TValue>) {
         // Values are real => register their magnitude
         static_assert(std::is_same_v<TValue,TPixel>);
         if constexpr (TAggregation == Aggregation::Sum) {
-            r_pixel += std::abs(value);
+            rPixel += std::abs(value);
         } else if constexpr (TAggregation == Aggregation::Max) {
-            r_pixel = std::max(r_pixel, std::abs(value));
+            rPixel = std::max(rPixel, std::abs(value));
         } else {
             // Error on unhandled aggregation
             static_assert(TAggregation == Aggregation::Sum);
@@ -640,9 +640,9 @@ void registerEntry([[maybe_unused]] const TValue value,
         // Values are complex => register their magnitude
         static_assert(std::is_same_v<typename TValue::value_type,TPixel>);
         if constexpr (TAggregation == Aggregation::Sum) {
-            r_pixel += std::abs(value);
+            rPixel += std::abs(value);
         } else if constexpr (TAggregation == Aggregation::Max) {
-            r_pixel = std::max(r_pixel, std::abs(value));
+            rPixel = std::max(rPixel, std::abs(value));
         } else {
             // Error on unhandled aggregation
             static_assert(TAggregation == Aggregation::Sum);
@@ -654,13 +654,13 @@ void registerEntry([[maybe_unused]] const TValue value,
 
 
 template <Aggregation TAggregation>
-void fill(Parser& r_parser,
+void fill(Parser& rParser,
           std::span<unsigned char> image,
           std::pair<std::size_t,std::size_t> imageSize,
-          const std::string& r_colormapName,
+          const std::string& rColormapName,
           std::optional<format::Structure> maybeStructure)
 {
-    format::Properties properties = r_parser.getProperties();
+    format::Properties properties = rParser.getProperties();
 
     // Nothing to do if the input size is null.
     if (properties.rows.value() == 0ul || properties.columns.value() == 0ul) {
@@ -688,7 +688,7 @@ void fill(Parser& r_parser,
     }
 
     // Choose colormap
-    const auto colormap = makeColormap(r_colormapName);
+    const auto colormap = makeColormap(rColormapName);
 
     // Check image buffer size
     const std::size_t pixelCount = imageSize.first * imageSize.second;
@@ -711,7 +711,7 @@ void fill(Parser& r_parser,
 
     // Parse the input file and map entries to pixels in the image.
     while (true) {
-        const auto maybeEntry = r_parser.parseLine<typename decltype(values)::value_type>();
+        const auto maybeEntry = rParser.parseLine<typename decltype(values)::value_type>();
         if (maybeEntry.has_value()) [[likely]] {
             ++entryCount;
             const std::size_t row = std::get<0>(*maybeEntry);
@@ -731,15 +731,17 @@ void fill(Parser& r_parser,
 
             const std::size_t imageRow = row * imageSize.second / properties.rows.value();
             const std::size_t imageColumn = column * imageSize.first / properties.columns.value();
-            const std::size_t i_flat = imageRow * imageSize.first + imageColumn;
-            assert(i_flat < values.size());
-            registerEntry<TAggregation>(value, values[i_flat]);
+            const std::size_t iFlat = imageRow * imageSize.first + imageColumn;
+            assert(iFlat < values.size());
+            registerEntry<TAggregation>(value, values[iFlat]);
         } else {
             break;
         }
     } // while (true)
 
-    const auto maxValue = *std::max_element(values.begin(), values.end());
+    const auto itMinMax = std::minmax_element(values.begin(), values.end());
+    const auto minValue = itMinMax.first != values.end() ? *itMinMax.first : 0;
+    const auto maxValue = itMinMax.second != values.end() ? *itMinMax.second : 0;
 
     // Check the read number of entries
     if (entryCount != properties.nonzeros.value()) {
@@ -756,7 +758,7 @@ void fill(Parser& r_parser,
 
     // No need to pass through the image again if no
     // entries were read.
-    if (maxValue == 0) {
+    if (minValue == maxValue) {
         return;
     }
 
@@ -791,25 +793,29 @@ void fill(Parser& r_parser,
 
     // Apply the colormap and fill the image buffer
     const std::size_t maxColor = colormap.empty() ? 0 : colormap.size() - 1;
-    for (std::size_t i_pixel=0ul; i_pixel<pixelCount; ++i_pixel) {
-        const std::size_t intensity = std::min<std::size_t>(maxColor, maxColor - maxColor * values[i_pixel] / maxValue);
-        const auto& r_color = colormap[intensity];
-        const std::size_t i_imageBegin = CHANNELS * i_pixel;
-        for (std::size_t i_component=0; i_component<CHANNELS; ++i_component) {
-            image[i_imageBegin + i_component] = r_color[i_component];
+    for (std::size_t iPixel=0ul; iPixel<pixelCount; ++iPixel) {
+        const std::size_t intensity = std::min<std::size_t>(
+            maxColor,
+            maxColor - (maxColor * (std::max(values[iPixel] - minValue, typename decltype(values)::value_type(0))) / (maxValue - minValue))
+        );
+
+        const auto& rColor = colormap[intensity];
+        const std::size_t iImageBegin = CHANNELS * iPixel;
+        for (std::size_t iComponent=0; iComponent<CHANNELS; ++iComponent) {
+            image[iImageBegin + iComponent] = rColor[iComponent];
         }
     }
 }
 
 
-std::vector<unsigned char> convert(std::istream& r_stream,
-                                   std::size_t& r_imageWidth,
-                                   std::size_t& r_imageHeight,
+std::vector<unsigned char> convert(std::istream& rStream,
+                                   std::size_t& rImageWidth,
+                                   std::size_t& rImageHeight,
                                    const Aggregation aggregation,
-                                   const std::string& r_colormapName)
+                                   const std::string& rColormapName)
 {
     std::vector<unsigned char> image;
-    Parser parser(r_stream);
+    Parser parser(rStream);
     const format::Properties inputProperties = parser.getProperties();
 
     // Validate object type
@@ -858,72 +864,58 @@ std::vector<unsigned char> convert(std::istream& r_stream,
 
     #ifndef NDEBUG
         // Print changes to the output dimension in debug mode
-        const std::pair<std::size_t,std::size_t> requestedImageSize {r_imageWidth, r_imageHeight};
+        const std::pair<std::size_t,std::size_t> requestedImageSize {rImageWidth, rImageHeight};
     #endif
 
     // Preserve the aspect ratio of the input matrix (as much as possible),
     // by restricting the resolution of the output image corresponding to the
     // shorter dimension.
     if (inputProperties.columns.value() < inputProperties.rows.value()) {
-        r_imageWidth = inputProperties.columns.value() * r_imageWidth / inputProperties.rows.value();
+        rImageWidth = inputProperties.columns.value() * rImageWidth / inputProperties.rows.value();
     } else {
-        r_imageHeight = inputProperties.rows.value() * r_imageHeight / inputProperties.columns.value();
+        rImageHeight = inputProperties.rows.value() * rImageHeight / inputProperties.columns.value();
     }
 
     // Restrict output image size
-    if (inputProperties.columns.value() < r_imageWidth) {
-        r_imageWidth = inputProperties.columns.value();
-        r_imageHeight = inputProperties.rows.value() * inputProperties.columns.value() / r_imageWidth;
+    if (inputProperties.columns.value() < rImageWidth) {
+        rImageWidth = inputProperties.columns.value();
+        rImageHeight = inputProperties.rows.value() * inputProperties.columns.value() / rImageWidth;
     }
 
-    if (inputProperties.rows.value() < r_imageHeight) {
-        r_imageHeight = inputProperties.rows.value();
-        r_imageWidth = inputProperties.columns.value() * inputProperties.rows.value() / r_imageHeight;
+    if (inputProperties.rows.value() < rImageHeight) {
+        rImageHeight = inputProperties.rows.value();
+        rImageWidth = inputProperties.columns.value() * inputProperties.rows.value() / rImageHeight;
     }
 
     #ifndef NDEBUG
         // Print changes to the output dimension in debug mode
-        if (r_imageWidth != requestedImageSize.first || r_imageHeight != requestedImageSize.second) {
+        if (rImageWidth != requestedImageSize.first || rImageHeight != requestedImageSize.second) {
             std::cout << std::format("mtx2img: restrict output image size from {}x{} to {}x{}\n",
                 requestedImageSize.first,
                 requestedImageSize.second,
-                r_imageWidth,
-                r_imageHeight
+                rImageWidth,
+                rImageHeight
             );
         }
     #endif
 
-    const std::pair<std::size_t,std::size_t> imageSize {r_imageWidth, r_imageHeight};
+    const std::pair<std::size_t,std::size_t> imageSize {rImageWidth, rImageHeight};
 
     // Resize image buffer to final size and initialize it to full white
     image.resize(imageSize.first * imageSize.second * CHANNELS, 0xff);
 
     // Parse input stream and fill the output image buffer
     switch (aggregation) {
-        case Aggregation::Count: fill<Aggregation::Count>(
-                parser,                   // <== mtx/mm parser
-                image,                    // <== buffer
-                imageSize,                // <== buffer dimensions
-                r_colormapName,           // <== name of the colormap to use
-                inputProperties.structure // <== input matrix symmetry
-            );
-            break;
-        case Aggregation::Sum: fill<Aggregation::Sum>(
-                parser,                   // <== mtx/mm parser
-                image,                    // <== buffer
-                imageSize,                // <== buffer dimensions
-                r_colormapName,           // <== name of the colormap to use
-                inputProperties.structure // <== input matrix symmetry
-            );
-            break;
-        case Aggregation::Max: fill<Aggregation::Max>(
-                parser,                   // <== mtx/mm parser
-                image,                    // <== buffer
-                imageSize,                // <== buffer dimensions
-                r_colormapName,           // <== name of the colormap to use
-                inputProperties.structure // <== input matrix symmetry
-            );
-            break;
+        #define MTX2IMG_FILL(AGGREGATION)                                                       \
+            fill<AGGREGATION>(parser,                       /* mtx/mm parser                */  \
+                              image,                        /* buffer                       */  \
+                              imageSize,                    /* buffer dimensions            */  \
+                              rColormapName,                /* name of the colormap to use  */  \
+                              inputProperties.structure)    /* input matrix symmetry)       */
+        case Aggregation::Count:    MTX2IMG_FILL(Aggregation::Count);   break;
+        case Aggregation::Sum:      MTX2IMG_FILL(Aggregation::Sum);     break;
+        case Aggregation::Max:      MTX2IMG_FILL(Aggregation::Max);     break;
+        #undef MTX2IMG_FILL
         default:
             throw std::runtime_error(std::format(
                 "Error: missing implementation for aggregation {}\n",

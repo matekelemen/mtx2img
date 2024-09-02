@@ -188,12 +188,12 @@ std::optional<Arguments> parseArguments(int argc, char const* const* argv)
 
     // Validate aggregation method
     {
-        const auto& r_aggregation = argMap["-a"];
-        if (r_aggregation == "count") {
+        const auto& rAggregation = argMap["-a"];
+        if (rAggregation == "count") {
             arguments.aggregation = mtx2img::Aggregation::Count;
-        } else if (r_aggregation == "sum") {
+        } else if (rAggregation == "sum") {
             arguments.aggregation = mtx2img::Aggregation::Sum;
-        } else if (r_aggregation == "max") {
+        } else if (rAggregation == "max") {
             arguments.aggregation = mtx2img::Aggregation::Max;
         } else {
             throw std::invalid_argument(std::format(
@@ -216,18 +216,18 @@ std::optional<Arguments> parseArguments(int argc, char const* const* argv)
 
     // Convert and validate resolution
     char* itEnd = nullptr;
-    const std::string& r_resolutionString = argMap["-r"];
-    const long long resolution = std::strtoll(r_resolutionString.data(), &itEnd, 0);
-    if (itEnd < r_resolutionString.data() ||
-        static_cast<std::size_t>(std::distance(r_resolutionString.data(), static_cast<const char*>(itEnd))) != r_resolutionString.size()) {
+    const std::string& rResolutionString = argMap["-r"];
+    const long long resolution = std::strtoll(rResolutionString.data(), &itEnd, 0);
+    if (itEnd < rResolutionString.data() ||
+        static_cast<std::size_t>(std::distance(rResolutionString.data(), static_cast<const char*>(itEnd))) != rResolutionString.size()) {
         throw std::invalid_argument(std::format(
             "Error: invalid output image resolution: {}\n",
-            r_resolutionString
+            rResolutionString
         ));
     } else if (resolution < 0) {
         throw std::invalid_argument(std::format(
             "Error: negative output image resolution: {}\n",
-            r_resolutionString
+            rResolutionString
         ));
     } else {
         arguments.resolution = static_cast<std::size_t>(resolution);

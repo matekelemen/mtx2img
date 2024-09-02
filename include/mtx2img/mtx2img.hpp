@@ -55,11 +55,11 @@ enum class Aggregation
 }; // enum class Aggregation
 
 
-std::vector<unsigned char> convert(std::istream& r_stream,
-                                   std::size_t& r_imageWidth,
-                                   std::size_t& r_imageHeight,
+std::vector<unsigned char> convert(std::istream& rStream,
+                                   std::size_t& rImageWidth,
+                                   std::size_t& rImageHeight,
                                    const Aggregation aggregation,
-                                   const std::string& r_colormapName);
+                                   const std::string& rColormapName);
 
 
 #define MTX2IMG_DEFINE_EXCEPTION(exceptionName)         \
