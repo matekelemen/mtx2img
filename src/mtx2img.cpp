@@ -460,9 +460,9 @@ private:
 
             // Print matrix properties in debug mode
             std::cout << "mtx2img: input matrix properties:\n"
-                    << "mtx2img:     " << rows << " rows\n"
-                    << "mtx2img:     " << columns << " columns\n"
-                    << "mtx2img:     " << nonzeros << " entries\n";
+                      << "mtx2img:     " << _properties.rows.value() << " rows\n"
+                      << "mtx2img:     " << _properties.columns.value() << " columns\n"
+                      << "mtx2img:     " << _properties.nonzeros.value() << " entries\n";
         #endif
     }
 
@@ -871,20 +871,20 @@ std::vector<unsigned char> convert(std::istream& rStream,
     // by restricting the resolution of the output image corresponding to the
     // shorter dimension.
     if (inputProperties.columns.value() < inputProperties.rows.value()) {
-        rImageWidth = inputProperties.columns.value() * rImageWidth / inputProperties.rows.value();
+        rImageWidth = std::max(inputProperties.columns.value() * rImageWidth / inputProperties.rows.value(), 1ul);
     } else {
-        rImageHeight = inputProperties.rows.value() * rImageHeight / inputProperties.columns.value();
+        rImageHeight = std::max(inputProperties.rows.value() * rImageHeight / inputProperties.columns.value(), 1ul);
     }
 
     // Restrict output image size
     if (inputProperties.columns.value() < rImageWidth) {
         rImageWidth = inputProperties.columns.value();
-        rImageHeight = inputProperties.rows.value() * inputProperties.columns.value() / rImageWidth;
+        rImageHeight = std::max(inputProperties.rows.value() * inputProperties.columns.value() / rImageWidth, 1ul);
     }
 
     if (inputProperties.rows.value() < rImageHeight) {
         rImageHeight = inputProperties.rows.value();
-        rImageWidth = inputProperties.columns.value() * inputProperties.rows.value() / rImageHeight;
+        rImageWidth = std::max(inputProperties.columns.value() * inputProperties.rows.value() / rImageHeight, 1ul);
     }
 
     #ifndef NDEBUG
